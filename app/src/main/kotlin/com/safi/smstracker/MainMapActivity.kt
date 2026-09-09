@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -40,6 +41,7 @@ class MainMapActivity : AppCompatActivity() {
         const val RESPONSE_POS = "!!POS:"
         var lastOtherPosition: GeoPoint? = null
         var instance: MainMapActivity? = null
+        private const val TAG = "SAFI_SMS"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,17 +156,14 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    // 📨 Envoyer demande — D'abord data, puis fallback SMS texte
     private fun sendRequestPosition(num: String) {
         try {
             val smsManager = android.telephony.SmsManager.getDefault()
-            // Essayer d'abord en SMS de données
             try {
                 smsManager.sendDataMessage(num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null)
-                Log.d("SAFI", "📨 Demande envoyée en SMS data")
+                Log.d(TAG, "📨 Demande envoyée en SMS data")
             } catch (e: Exception) {
-                Log.d("SAFI", "⚠️ SMS data échoué, envoi en SMS texte: ${e.message}")
-                // Fallback : SMS texte normal
+                Log.d(TAG, "⚠️ SMS data échoué, envoi en SMS texte: ${e.message}")
                 smsManager.sendTextMessage(num, null, REQUEST_POS, null, null)
             }
             tvStatus.text = "📨 Demande envoyée à $num..."
@@ -175,7 +174,6 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    // 📤 Envoyer ma position en réponse
     fun sendMyPositionInResponse(toNumber: String) {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             runOnUiThread {
@@ -190,12 +188,11 @@ class MainMapActivity : AppCompatActivity() {
                 val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
                 try {
                     val smsManager = android.telephony.SmsManager.getDefault()
-                    // Essayer data d'abord, puis fallback texte
                     try {
                         smsManager.sendDataMessage(toNumber, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null)
-                        Log.d("SAFI", "📤 Réponse envoyée en SMS data")
+                        Log.d(TAG, "📤 Réponse envoyée en SMS data")
                     } catch (e: Exception) {
-                        Log.d("SAFI", "⚠️ Réponse en SMS texte: ${e.message}")
+                        Log.d(TAG, "⚠️ Réponse en SMS texte: ${e.message}")
                         smsManager.sendTextMessage(toNumber, null, smsText, null, null)
                     }
                     runOnUiThread {
