@@ -31,7 +31,6 @@
             android:hint="+33 6 12 34 56 78"
             android:inputType="phone"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#AAAAAA"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="8dp"
             android:padding="10dp"
