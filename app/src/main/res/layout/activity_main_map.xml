@@ -4,6 +4,20 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- 🕵️ TITRE CLIQUABLE — 7 clics = MENU SECRET -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔒 SAFI — Suivi GPS"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:padding="12dp"
+        android:background="#FF222222"
+        android:clickable="true"
+        android:focusable="true"/>
+
     <org.osmdroid.views.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
@@ -66,17 +80,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="4dp">
 
             <Button
                 android:id="@+id/btnStartFollow"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🟢 SUIVRE L'AUTRE"
-                android:backgroundTint="#00C853"
+                android:text="🟢 Suivre"
+                android:backgroundTint="#2E7D32"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp"
                 android:layout_marginEnd="4dp"/>
 
             <Button
@@ -84,8 +97,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🔴 ARRÊTER"
-                android:backgroundTint="#D50000"
+                android:text="🔴 Arrêter"
+                android:backgroundTint="#C62828"
                 android:textColor="#FFFFFF"
                 android:layout_marginEnd="4dp"/>
         </LinearLayout>
@@ -94,15 +107,15 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="4dp">
 
             <Button
                 android:id="@+id/btnCenter"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="📍 Moi"
-                android:backgroundTint="#2196F3"
+                android:text="🎯 Ma position"
+                android:backgroundTint="#1565C0"
                 android:textColor="#FFFFFF"
                 android:layout_marginEnd="4dp"/>
 
@@ -111,8 +124,25 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🔴 Aller vers lui"
-                android:backgroundTint="#E91E63"
+                android:text="👤 L'autre"
+                android:backgroundTint="#6A1B9A"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="4dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <Button
+                android:id="@+id/btnFloatingMap"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🗺️ Carte flottante"
+                android:backgroundTint="#00897B"
                 android:textColor="#FFFFFF"
                 android:layout_marginEnd="4dp"/>
 
@@ -121,28 +151,22 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🗑️ Effacer"
-                android:backgroundTint="#FF5722"
-                android:textColor="#FFFFFF"/>
+                android:text="⏹️ Effacer"
+                android:backgroundTint="#424242"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="4dp"/>
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btnFloatingMap"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🗺️ CARTE FLOTTANTE"
-            android:backgroundTint="#7B1FA2"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="8dp"/>
 
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="✅ Prêt — Saisis le numéro de l'autre"
-            android:textColor="#90EE90"
+            android:textColor="#AAAAAA"
             android:textSize="12sp"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginTop="8dp"
+            android:padding="8dp"
+            android:background="#222222"/>
     </LinearLayout>
 
 </LinearLayout>

