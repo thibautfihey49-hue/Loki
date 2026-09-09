@@ -32,7 +32,7 @@ class FloatingMapService : Service() {
 
     companion object {
         const val CHANNEL_ID = "SAFI_DATA_SMS"
-        const val DESTINATION_PORT = 7777 // ✅ Port dédié — comme je te l'avais fait avant
+        const val DESTINATION_PORT = 7777
         var myLastPos: Position? = null
         var otherLastPos: Position? = null
     }
@@ -99,7 +99,7 @@ class FloatingMapService : Service() {
         }
         wm.addView(floatingView, params)
 
-        val container = binding.root.findViewById<FrameLayout>(R.id.map_container)
+        val container = binding.root.findViewById<FrameLayout>(android.R.id.content)
         container.removeAllViews()
         mapCanvas = OfflineMapView(this)
         container.addView(mapCanvas)
@@ -118,7 +118,7 @@ class FloatingMapService : Service() {
                     val pos = Position(loc.latitude, loc.longitude, true)
                     myLastPos = pos
                     mapCanvas?.updateMyPos(pos)
-                    sendPositionDataSms(pos) // ✅ Envoi par SMS de DONNÉES
+                    sendPositionDataSms(pos)
                 }
             }
         }
@@ -138,7 +138,6 @@ class FloatingMapService : Service() {
         }
     }
 
-    // 📤 ENVOI PAR SMS DE DONNÉES — sendDataMessage, PAS de texte, PAS de messagerie
     private fun sendPositionDataSms(p: Position) {
         val otherNum = prefs.getString("OTHER_NUMBER", "") ?: return
         if (otherNum.isEmpty()) return
@@ -146,18 +145,17 @@ class FloatingMapService : Service() {
         try {
             val data = p.toString().toByteArray(Charsets.UTF_8)
             SmsManager.getDefault().sendDataMessage(
-                otherNum,        // Numéro du destinataire
-                null,            // Numéro du centre SMS (automatique)
-                DESTINATION_PORT.toShort(), // ✅ Port 7777 — comme un socket !
-                data,            // Données binaires
-                null, null       // Pas de broadcast de confirmation
+                otherNum,
+                null,
+                DESTINATION_PORT.toShort(),
+                data,
+                null, null
             )
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    // 📥 APPELÉ DEPUIS DataSmsReceiver — Données reçues sur le port 7777
     fun onDataReceived(p: Position, fromNumber: String) {
         otherLastPos = p
         mapCanvas?.updateOtherPos(p)
@@ -168,7 +166,7 @@ class FloatingMapService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "DATA_RECEIVED") {
-            val pos = intent.getParcelableExtra<Position>("pos")
+            val pos = intent.getSerializableExtra("pos") as? Position
             val from = intent.getStringExtra("from") ?: ""
             pos?.let { onDataReceived(it, from) }
         }
@@ -222,11 +220,11 @@ class FloatingMapService : Service() {
             canvas.drawCircle(w/2, h/2, 20f, paintRing)
 
             otherPos?.let { other ->
-                val dx = (other.longitude - centerLon) * 111000f * cos(Math.toRadians(centerLat))
-                val dy = -(other.latitude - centerLat) * 111000f
-                val px = w/2 + (dx / scale)
-                val py = h/2 + (dy / scale)
-                if (px > 10 && px < w-10 && py > 10 && py < h-10) {
+                val dx = (other.longitude - centerLon) * 111000.0 * cos(Math.toRadians(centerLat))
+                val dy = -(other.latitude - centerLat) * 111000.0
+                val px = w/2 + (dx / scale.toDouble()).toFloat()
+                val py = h/2 + (dy / scale.toDouble()).toFloat()
+                if (px > 10f && px < w-10f && py > 10f && py < h-10f) {
                     canvas.drawCircle(px, py, 12f, paintOther)
                 }
             }

@@ -2,6 +2,7 @@ package com.safi.smstracker.model
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import java.io.Serializable
 
 @Parcelize
 data class Position(
@@ -9,7 +10,7 @@ data class Position(
     val longitude: Double,
     var isMyPosition: Boolean,
     val timestamp: Long = System.currentTimeMillis()
-) : Parcelable {
+) : Parcelable, Serializable {
     override fun toString(): String = "!!POS:$latitude,$longitude"
 
     companion object {

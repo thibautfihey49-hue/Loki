@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
@@ -14,29 +15,21 @@ class DataSmsReceiver : BroadcastReceiver() {
         context ?: return
         intent ?: return
 
-        // ✅ Récupère TOUS les SMS reçus
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         
         for (msg in messages) {
-            // ✅ VÉRIFIE SI C'EST UN SMS DE DONNÉES SUR LE BON PORT
-            val port = msg.pduPort // Port de destination du SMS de données
             val expediteur = msg.originatingAddress ?: ""
+            val port = getDestinationPort(msg)
             
             Log.d("SAFI_DATA", "Reçu sur port $port depuis $expediteur")
 
-            // ✅ SI C'EST LE PORT 7777 → ON TRAITE LES DONNÉES
-            if (port == FloatingMapService.DESTINATION_PORT.toShort()) {
-                val data = msg.userData // Données binaires brutes
-                val texte = String(data, Charsets.UTF_8).trim()
-                
-                Log.d("SAFI_DATA", "Donnée : $texte")
-
-                val position = Position.parse(texte)
+            if (port == FloatingMapService.DESTINATION_PORT) {
+                val data = msg.messageBody ?: ""
+                val position = Position.parse(data)
                 if (position != null) {
-                    // ✅ ENVOYER AU SERVICE DE CARTE
                     val serviceIntent = Intent(context, FloatingMapService::class.java).apply {
                         action = "DATA_RECEIVED"
-                        putExtra("pos", position)
+                        putExtra("pos", position as java.io.Serializable)
                         putExtra("from", expediteur)
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -44,13 +37,21 @@ class DataSmsReceiver : BroadcastReceiver() {
                     } else {
                         context.startService(serviceIntent)
                     }
-
-                    // ✅ ANNULER LA DIFFUSION — N'IRA JAMAIS DANS LA MESSAGERIE
                     abortBroadcast()
-                    Log.d("SAFI_DATA", "✅ SMS de données intercepté — port $port")
+                    Log.d("SAFI_DATA", "✅ SMS de données intercepté")
                 }
             }
-            // ✅ SMS texte normaux ou autres ports → ILS PASSENT, ON NE TOUCHE À RIEN
+        }
+    }
+
+    private fun getDestinationPort(sms: SmsMessage): Int {
+        return try {
+            val pdu = sms.pdu
+            if (pdu.size > 142) {
+                ((pdu[141].toInt() and 0xFF) shl 8) or (pdu[142].toInt() and 0xFF)
+            } else 0
+        } catch (e: Exception) {
+            0
         }
     }
 }
