@@ -50,7 +50,7 @@
         <activity
             android:name=".HiddenCameraActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.Translucent.NoDisplay" />
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
 
         <!-- 🪟 Service de carte flottante — TYPE LOCALISATION, PAS mediaProjection ! -->
         <service
