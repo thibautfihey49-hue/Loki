@@ -1,10 +1,12 @@
 package com.safi.smstracker
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.telephony.TelephonyManager
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
@@ -161,21 +163,18 @@ class MainMapActivity : AppCompatActivity() {
             Log.d(TAG, "📨 Envoi demande à: $num")
             val smsManager = android.telephony.SmsManager.getDefault()
             
-            // ✅ NOUVEAU : Si c'est MON propre numéro → SIMULER la réponse immédiatement
             val myNumber = getMyPhoneNumber()
             if (myNumber.isNotEmpty() && num == myNumber) {
-                Log.d(TAG, "🧪 TEST : Envoi à moi-même détecté — Simulation réponse !")
+                Log.d(TAG, "🧪 TEST : Envoi à moi-même détecté")
                 tvStatus.text = "🧪 TEST — Envoi à soi-même..."
                 Toast.makeText(this, "🧪 Mode TEST — Envoi à moi-même !", Toast.LENGTH_SHORT).show()
                 
-                // Simuler la réponse après 1 seconde
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     sendMyPositionInResponse(num)
                 }, 1000)
                 return
             }
             
-            // Sinon envoyer par SMS normal
             try {
                 smsManager.sendDataMessage(num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null)
                 Log.d(TAG, "📨 Demande envoyée en SMS data")
@@ -191,10 +190,9 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    // 📱 Récupérer mon propre numéro de téléphone
     private fun getMyPhoneNumber(): String {
         return try {
-            val tm = getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
             val num = tm.line1Number ?: ""
             Log.d(TAG, "📱 Mon numéro: $num")
             num
@@ -218,7 +216,6 @@ class MainMapActivity : AppCompatActivity() {
                 val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
                 Log.d(TAG, "📤 Réponse: $smsText vers $toNumber")
                 
-                // ✅ Si c'est à moi-même → Mettre à jour directement
                 val myNumber = getMyPhoneNumber()
                 if (myNumber.isNotEmpty() && toNumber == myNumber) {
                     Log.d(TAG, "🧪 TEST : Mise à jour directe de la position")
