@@ -11,6 +11,7 @@ import android.graphics.PixelFormat
 import android.graphics.Point
 import android.location.Location
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
 import android.telephony.SmsManager
 import android.view.Gravity
@@ -25,7 +26,9 @@ import com.safi.smstracker.model.Position
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import java.io.File
 
 class FloatingMapService : Service() {
 
@@ -46,6 +49,7 @@ class FloatingMapService : Service() {
     private var myMarker: Marker? = null
     private var otherMarker: Marker? = null
     private lateinit var prefs: SharedPreferences
+    private lateinit var mapView: MapView
 
     override fun onCreate() {
         super.onCreate()
@@ -80,51 +84,59 @@ class FloatingMapService : Service() {
         binding = ViewFloatingMapBinding.inflate(getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater)
         floatingView = binding.root
 
-        // ✅ TAILLE MOYENNE — 80% de l'écran, PAS plein écran !
         val display = wm.defaultDisplay
         val size = Point()
         display.getSize(size)
-        val screenW = size.x
-        val screenH = size.y
-        val w = (screenW * 0.85).toInt()
-        val h = (screenH * 0.65).toInt()
+        val w = (size.x * 0.90).toInt()
+        val h = (size.y * 0.70).toInt()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            w, h,  // ✅ TAILLE FIXE — PLUS PETITE !
+            w, h,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER  // ✅ Centrée sur l'écran
-        }
+        ).apply { gravity = Gravity.CENTER }
         wm.addView(floatingView, params)
         binding.btnCloseMap.setOnClickListener { stopSelf() }
     }
 
     private fun initMap() {
-        Configuration.getInstance().load(this, prefs)
-        Configuration.getInstance().userAgentValue = packageName
-        binding.mapView.setTileSource(TileSourceFactory.MAPNIK)
-        binding.mapView.setMultiTouchControls(true)
-        binding.mapView.controller?.setZoom(15.0)
+        // ✅ CONFIGURATION OSMDROID COMPLÈTE
+        val osmdroidBase = File(cacheDir, "osmdroid")
+        osmdroidBase.mkdirs()
+        Configuration.getInstance().apply {
+            osmdroidBasePath = osmdroidBase
+            osmdroidTileCache = File(osmdroidBase, "tiles")
+            userAgentValue = packageName
+            load(this@FloatingMapService, prefs)
+        }
+
+        mapView = binding.mapView
+        mapView.setTileSource(TileSourceFactory.MAPNIK)
+        mapView.setMultiTouchControls(true)
+        mapView.controller?.setZoom(15.0)
+        mapView.isTilesScaledToDpi = true
+
+        // ✅ Position Angers
         val defaultPos = GeoPoint(47.4784, -0.5632)
-        binding.mapView.controller?.setCenter(defaultPos)
-        myMarker = Marker(binding.mapView).apply {
+        mapView.controller?.setCenter(defaultPos)
+
+        myMarker = Marker(mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_online, null)
             title = "📍 MOI"
             position = defaultPos
         }
-        otherMarker = Marker(binding.mapView).apply {
+        otherMarker = Marker(mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_busy, null)
             title = "👤 L'AUTRE"
             position = defaultPos
         }
-        binding.mapView.overlays.addAll(listOf(myMarker!!, otherMarker!!))
-        binding.mapView.invalidate()
+        mapView.overlays.addAll(listOf(myMarker!!, otherMarker!!))
+        mapView.invalidate()
     }
 
     private fun initLocation() {
@@ -161,14 +173,14 @@ class FloatingMapService : Service() {
     private fun updateMyMarker(p: Position) {
         val gp = GeoPoint(p.latitude, p.longitude)
         myMarker?.position = gp
-        binding.mapView.controller?.animateTo(gp)
-        binding.mapView.invalidate()
+        mapView.controller?.animateTo(gp)
+        mapView.invalidate()
     }
 
     fun updateOtherPos(p: Position) {
         otherLastPos = p
         otherMarker?.position = GeoPoint(p.latitude, p.longitude)
-        binding.mapView.invalidate()
+        mapView.invalidate()
     }
 
     private fun sendBySms(p: Position) {
