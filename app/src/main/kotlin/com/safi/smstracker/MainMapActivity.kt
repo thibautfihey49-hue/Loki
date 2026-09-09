@@ -98,27 +98,35 @@ class MainMapActivity : AppCompatActivity() {
             Toast.makeText(this, "✅ Numéro sauvegardé", Toast.LENGTH_SHORT).show()
         }
 
-        // 📍 Demander une seule fois
         findViewById<Button>(R.id.btnRequestOnce).setOnClickListener {
             val num = getOtherNumber() ?: return@setOnClickListener
-            sendSms(num, Commands.REQUEST_POS_ONCE)
-            tvStatus.text = "📨 Demande ponctuelle envoyée à $num..."
-            Toast.makeText(this, "📨 Demande envoyée !", Toast.LENGTH_SHORT).show()
+            if (isMyNumber(num)) {
+                testModeOnce()
+            } else {
+                sendSms(num, Commands.REQUEST_POS_ONCE)
+                tvStatus.text = "📨 Demande ponctuelle envoyée à $num..."
+            }
         }
 
-        // 🟢 SUIVRE L'AUTRE — LUI envoie SA position toutes les minutes
         findViewById<Button>(R.id.btnStartFollow).setOnClickListener {
             val num = getOtherNumber() ?: return@setOnClickListener
-            sendSms(num, Commands.REQUEST_POS_START)
-            tvStatus.text = "🟢 SUIVI DÉMARRÉ — $num m'envoie sa position chaque minute"
-            Toast.makeText(this, "🟢 Suivi démarré ! Il va m'envoyer sa position chaque minute", Toast.LENGTH_LONG).show()
+            if (isMyNumber(num)) {
+                testModeStart()
+            } else {
+                sendSms(num, Commands.REQUEST_POS_START)
+                tvStatus.text = "🟢 SUIVI DÉMARRÉ — $num m'envoie sa position chaque minute"
+            }
+            Toast.makeText(this, "🟢 Suivi démarré !", Toast.LENGTH_LONG).show()
         }
 
-        // 🔴 ARRÊTER — LUI arrête d'envoyer
         findViewById<Button>(R.id.btnStopFollow).setOnClickListener {
             val num = getOtherNumber() ?: return@setOnClickListener
-            sendSms(num, Commands.REQUEST_POS_STOP)
-            tvStatus.text = "🔴 SUIVI ARRÊTÉ"
+            if (isMyNumber(num)) {
+                testModeStop()
+            } else {
+                sendSms(num, Commands.REQUEST_POS_STOP)
+                tvStatus.text = "🔴 SUIVI ARRÊTÉ"
+            }
             Toast.makeText(this, "🔴 Suivi arrêté !", Toast.LENGTH_SHORT).show()
         }
 
@@ -144,7 +152,6 @@ class MainMapActivity : AppCompatActivity() {
             Toast.makeText(this, "⏹️ Réinitialisé", Toast.LENGTH_SHORT).show()
         }
 
-        // 🗺️ Ouvrir carte flottante
         findViewById<Button>(R.id.btnFloatingMap).setOnClickListener {
             if (checkOverlayPermission()) {
                 FloatingWindowService.show(this)
@@ -164,6 +171,25 @@ class MainMapActivity : AppCompatActivity() {
         return num
     }
 
+    private fun getMyPhoneNumber(): String {
+        return try {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            val num = tm.line1Number ?: ""
+            Log.d(TAG, "📱 Mon numéro: $num")
+            num
+        } catch (e: Exception) {
+            Log.e(TAG, "Impossible de lire mon numéro", e)
+            ""
+        }
+    }
+
+    private fun isMyNumber(num: String): Boolean {
+        val myNum = getMyPhoneNumber()
+        val cleanNum = num.replace("\\s".toRegex(), "").replace("^0".toRegex(), "+33")
+        val cleanMyNum = myNum.replace("\\s".toRegex(), "")
+        return cleanNum == cleanMyNum || num == myNum
+    }
+
     private fun sendSms(to: String, message: String) {
         try {
             val smsManager = android.telephony.SmsManager.getDefault()
@@ -179,6 +205,39 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
+    private var testHandler: android.os.Handler? = null
+    private var testRunnable: Runnable? = null
+
+    private fun testModeOnce() {
+        tvStatus.text = "🧪 MODE TEST — Envoi à moi-même (1x)"
+        Toast.makeText(this, "🧪 Mode TEST — Position immédiate !", Toast.LENGTH_SHORT).show()
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            sendMyPositionInResponse("SELF_TEST")
+        }, 500)
+    }
+
+    private fun testModeStart() {
+        tvStatus.text = "🧪 MODE TEST — Envoi à moi-même chaque minute"
+        Toast.makeText(this, "🧪 Mode TEST SUIVI — Position chaque minute !", Toast.LENGTH_LONG).show()
+        
+        testHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        testRunnable = object : Runnable {
+            override fun run() {
+                sendMyPositionInResponse("SELF_TEST")
+                testHandler?.postDelayed(this, 60000)
+            }
+        }
+        testHandler?.post(testRunnable!!)
+    }
+
+    private fun testModeStop() {
+        testRunnable?.let { testHandler?.removeCallbacks(it) }
+        testHandler = null
+        testRunnable = null
+        tvStatus.text = "🔴 MODE TEST ARRÊTÉ"
+        Toast.makeText(this, "🔴 Test arrêté", Toast.LENGTH_SHORT).show()
+    }
+
     fun sendMyPositionInResponse(toNumber: String) {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "⚠️ Permission GPS manquante", Toast.LENGTH_SHORT).show()
@@ -187,18 +246,12 @@ class MainMapActivity : AppCompatActivity() {
 
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
             loc?.let {
-                val text = "${Commands.RESPONSE_POS}${it.latitude},${it.longitude}"
-                try {
-                    val smsManager = android.telephony.SmsManager.getDefault()
-                    try {
-                        smsManager.sendDataMessage(toNumber, null, Commands.PORT.toShort(), text.toByteArray(Charsets.UTF_8), null, null)
-                    } catch (e: Exception) {
-                        smsManager.sendTextMessage(toNumber, null, text, null, null)
-                    }
-                    Log.d(TAG, "📤 Réponse envoyée à $toNumber")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Erreur envoi réponse", e)
-                }
+                val pos = GeoPoint(it.latitude, it.longitude)
+                Log.d(TAG, "📤 Position: ${it.latitude}, ${it.longitude}")
+                updateOtherPosition(it.latitude, it.longitude, toNumber)
+            } ?: runOnUiThread {
+                tvStatus.text = "⏳ Position GPS pas disponible — Active le GPS !"
+                Toast.makeText(this, "⏳ Active le GPS d'abord !", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -262,6 +315,7 @@ class MainMapActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        testRunnable?.let { testHandler?.removeCallbacks(it) }
         super.onDestroy()
         instance = null
     }
