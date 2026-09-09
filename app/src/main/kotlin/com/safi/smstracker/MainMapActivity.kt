@@ -94,9 +94,7 @@ class MainMapActivity : AppCompatActivity() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 super.onLocationResult(result)
-                result.lastLocation?.let { loc ->
-                    // Rien à faire ici — on envoie seulement quand demandé
-                }
+                result.lastLocation?.let { }
             }
         }
     }
@@ -108,7 +106,6 @@ class MainMapActivity : AppCompatActivity() {
             Toast.makeText(this, "✅ Numéro sauvegardé", Toast.LENGTH_SHORT).show()
         }
 
-        // 📍 NOUVEAU : Demander la position de l'autre
         findViewById<Button>(R.id.btnRequest).setOnClickListener {
             val num = prefs.getString("OTHER_NUM", "") ?: ""
             if (num.isEmpty()) {
@@ -124,7 +121,6 @@ class MainMapActivity : AppCompatActivity() {
             } ?: Toast.makeText(this, "⏳ Position GPS en attente...", Toast.LENGTH_SHORT).show()
         }
 
-        // 🔴 NOUVEAU : Aller vers la position de l'autre
         findViewById<Button>(R.id.btnGoToOther).setOnClickListener {
             lastOtherPosition?.let { pos ->
                 mapView.controller.animateTo(pos, 14.0, 600L)
@@ -147,6 +143,7 @@ class MainMapActivity : AppCompatActivity() {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_SMS,
             Manifest.permission.INTERNET
         )
         val missing = needed.filter {
@@ -157,12 +154,19 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    // 📨 Envoyer une demande de position
+    // 📨 Envoyer demande — D'abord data, puis fallback SMS texte
     private fun sendRequestPosition(num: String) {
         try {
-            android.telephony.SmsManager.getDefault().sendDataMessage(
-                num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null
-            )
+            val smsManager = android.telephony.SmsManager.getDefault()
+            // Essayer d'abord en SMS de données
+            try {
+                smsManager.sendDataMessage(num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null)
+                Log.d("SAFI", "📨 Demande envoyée en SMS data")
+            } catch (e: Exception) {
+                Log.d("SAFI", "⚠️ SMS data échoué, envoi en SMS texte: ${e.message}")
+                // Fallback : SMS texte normal
+                smsManager.sendTextMessage(num, null, REQUEST_POS, null, null)
+            }
             tvStatus.text = "📨 Demande envoyée à $num..."
             Toast.makeText(this, "📨 Demande envoyée !", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -171,11 +175,12 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    // 📤 Envoyer MA position en réponse à une demande
+    // 📤 Envoyer ma position en réponse
     fun sendMyPositionInResponse(toNumber: String) {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             runOnUiThread {
                 tvStatus.text = "⚠️ Permission GPS manquante pour répondre"
+                Toast.makeText(this, "⚠️ Accorde la permission GPS d'abord", Toast.LENGTH_LONG).show()
             }
             return
         }
@@ -184,24 +189,32 @@ class MainMapActivity : AppCompatActivity() {
             loc?.let {
                 val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
                 try {
-                    android.telephony.SmsManager.getDefault().sendDataMessage(
-                        toNumber, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null
-                    )
+                    val smsManager = android.telephony.SmsManager.getDefault()
+                    // Essayer data d'abord, puis fallback texte
+                    try {
+                        smsManager.sendDataMessage(toNumber, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null)
+                        Log.d("SAFI", "📤 Réponse envoyée en SMS data")
+                    } catch (e: Exception) {
+                        Log.d("SAFI", "⚠️ Réponse en SMS texte: ${e.message}")
+                        smsManager.sendTextMessage(toNumber, null, smsText, null, null)
+                    }
                     runOnUiThread {
                         tvStatus.text = "📤 Réponse envoyée à $toNumber"
+                        Toast.makeText(this, "📤 Réponse envoyée !", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
                         tvStatus.text = "❌ Erreur réponse: ${e.message}"
+                        Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             } ?: runOnUiThread {
-                tvStatus.text = "⏳ GPS pas encore prêt pour répondre"
+                tvStatus.text = "⏳ Position GPS pas encore disponible — Active le GPS !"
+                Toast.makeText(this, "⏳ Active le GPS d'abord !", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    // 📥 Mettre à jour la position de l'autre sur la carte
     fun updateOtherPosition(lat: Double, lon: Double, from: String) {
         lastOtherPosition = GeoPoint(lat, lon)
         runOnUiThread {
@@ -210,6 +223,7 @@ class MainMapActivity : AppCompatActivity() {
             otherMarkerVisible = true
             mapView.invalidate()
             tvStatus.text = "✅ Position reçue de $from : %.4f, %.4f".format(lat, lon)
+            Toast.makeText(this, "✅ Position reçue !", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -236,8 +250,13 @@ class MainMapActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100 && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            Toast.makeText(this, "✅ Toutes permissions accordées", Toast.LENGTH_SHORT).show()
+        if (requestCode == 100) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                Toast.makeText(this, "✅ Toutes permissions accordées", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "⚠️ Certaines permissions sont refusées !", Toast.LENGTH_LONG).show()
+            }
         }
     }
 }
