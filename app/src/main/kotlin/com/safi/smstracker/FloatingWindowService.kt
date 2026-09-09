@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.IBinder
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -53,7 +54,6 @@ class FloatingWindowService : Service() {
         val tvClose = floatingView?.findViewById<TextView>(R.id.tvCloseFloating)
         val tvInfo = floatingView?.findViewById<TextView>(R.id.tvFloatingInfo)
 
-        // 🗺️ Config petite carte
         mapView?.setTileSource(TileSourceFactory.MAPNIK)
         mapView?.setMultiTouchControls(false)
         mapView?.isClickable = false
@@ -67,18 +67,14 @@ class FloatingWindowService : Service() {
         }
         mapView?.overlays?.add(marker)
 
-        // ❌ Fermer la carte flottante
         tvClose?.setOnClickListener { close() }
 
-        // 📐 Dimensions de la fenêtre flottante
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            300, // Largeur
-            350, // Hauteur
-            type,
+            300, 350, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
