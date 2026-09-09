@@ -4,7 +4,6 @@ build/
 app/build/
 gradle-*/
 *.zip
-*.jar
 
 # Android
 local.properties
@@ -18,3 +17,6 @@ local.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# NE PAS ignorer : gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.jar
