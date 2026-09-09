@@ -27,7 +27,7 @@
     <Button android:id="@+id/btnStop" android:layout_width="match_parent" android:layout_height="50dp"
         android:text="⏹️ ARRÊTER" android:background="#EF5350" android:textColor="#FFFFFF" android:layout_marginBottom="24dp"/>
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:gap="12dp">
+        android:orientation="horizontal" android:layout_margin="6dp">
         <Button android:id="@+id/btnCamera" android:layout_width="0dp" android:layout_height="50dp"
             android:layout_weight="1" android:text="📷 Photo cachée" android:background="#6A1B9A" android:textColor="#FFFFFF"/>
         <Button android:id="@+id/btnGallery" android:layout_width="0dp" android:layout_height="50dp"
