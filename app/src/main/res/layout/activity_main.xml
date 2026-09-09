@@ -4,8 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="24dp"
-    android:gravity="center_horizontal"
-    android:background="#F5F5F5">
+    android:gravity="center_horizontal">
 
     <TextView
         android:layout_width="wrap_content"
@@ -13,23 +12,13 @@
         android:text="SAFI — SMS de Données"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="32dp"/>
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Échange par SMS de données — Port 7777 — Jamais dans la messagerie"
-        android:textSize="13sp"
-        android:layout_marginBottom="32dp"
-        android:gravity="center"/>
-
-    <TextView
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Numéro de l'autre téléphone :"
-        android:textSize="15sp"
-        android:layout_gravity="start"
-        android:layout_marginStart="4dp"/>
+        android:textSize="15sp"/>
 
     <EditText
         android:id="@+id/et_numero"
@@ -38,35 +27,23 @@
         android:hint="+33 6 12 34 56 78"
         android:inputType="phone"
         android:layout_marginBottom="16dp"
-        android:padding="14dp"
-        android:background="@android:drawable/edit_text"/>
+        android:padding="14dp"/>
 
     <Button
         android:id="@+id/btn_save"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="💾 Sauvegarder le numéro"
+        android:text="💾 Sauvegarder"
         android:backgroundTint="#4CAF50"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
         android:layout_marginBottom="12dp"/>
 
     <Button
         android:id="@+id/btn_start"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="🗺️ Ouvrir la carte flottante"
+        android:text="🗺️ Démarrer la carte"
         android:backgroundTint="#2196F3"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="⚠️ SMS de données = données binaires sur port 7777. Invisible, pas de trace, pas de facturation supplémentaire."
-        android:textSize="12sp"
-        android:gravity="center"
-        android:layout_marginTop="24dp"
-        android:padding="8dp"/>
+        android:textColor="#FFFFFF"/>
 
 </LinearLayout>
