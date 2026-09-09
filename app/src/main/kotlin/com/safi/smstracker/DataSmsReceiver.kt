@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
 import android.telephony.SmsMessage
-import com.safi.smstracker.model.Position
+import android.util.Log
 
 class DataSmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -15,19 +15,34 @@ class DataSmsReceiver : BroadcastReceiver() {
 
         for (msg in Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
             val port = getPort(msg)
-            if (port == 7777) {
+            val expediteur = msg.originatingAddress ?: "??"
+            Log.d("SAFI_SMS", "Reçu sur port $port depuis $expediteur")
+
+            if (port == MainMapActivity.PORT) {
                 val text = msg.messageBody ?: ""
-                val pos = Position.parse(text)
-                if (pos != null) {
-                    val i = Intent(context, TrackerService::class.java)
-                    i.action = "NEW_POS"
-                    i.putExtra("pos", pos)
-                    i.putExtra("from", msg.originatingAddress ?: "")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                        context.startForegroundService(i)
-                    else
-                        context.startService(i)
-                    abortBroadcast()
+                if (text.startsWith("!!POS:")) {
+                    val parts = text.removePrefix("!!POS:").split(",")
+                    if (parts.size == 2) {
+                        try {
+                            val lat = parts[0].toDouble()
+                            val lon = parts[1].toDouble()
+                            
+                            if (MainMapActivity.lastOtherPosition == null ||
+                                MainMapActivity.lastOtherPosition!!.latitude != lat ||
+                                MainMapActivity.lastOtherPosition!!.longitude != lon) {
+                                
+                                val actCls = Class.forName("com.safi.smstracker.MainMapActivity")
+                                val updateMethod = actCls.getMethod("updateOtherPosition", 
+                                    Double::class.java, Double::class.java, String::class.java)
+                                updateMethod.invoke(context, lat, lon, expediteur)
+                            }
+                            
+                            abortBroadcast()
+                            Log.d("SAFI_SMS", "✅ Position mise à jour: $lat, $lon")
+                        } catch (e: Exception) {
+                            Log.e("SAFI_SMS", "Erreur parsing", e)
+                        }
+                    }
                 }
             }
         }
