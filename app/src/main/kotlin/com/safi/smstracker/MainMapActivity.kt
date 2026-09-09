@@ -35,15 +35,14 @@ class MainMapActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var etOtherNumber: EditText
     private lateinit var tvStatus: TextView
-    private lateinit var tvTitle: TextView  # 🕵️ Titre cliquable = menu secret
+    private lateinit var tvTitle: TextView
     private lateinit var myLocationOverlay: MyLocationNewOverlay
     private var otherMarker: Marker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var otherMarkerVisible = false
     
-    # 🕵️ Compteurs pour le menu secret
     private var titleClickCount = 0
-    private val SECRET_CLICK_COUNT = 7  # 7 clics rapides sur le titre = ouvrir le menu caché
+    private val SECRET_CLICK_COUNT = 7
     private var lastTitleClickTime = 0L
 
     companion object {
@@ -65,7 +64,7 @@ class MainMapActivity : AppCompatActivity() {
         mapView = findViewById(R.id.mapView)
         etOtherNumber = findViewById(R.id.etOtherNumber)
         tvStatus = findViewById(R.id.tvStatus)
-        tvTitle = findViewById(R.id.tvTitle)  # 🕵️ Le titre en haut
+        tvTitle = findViewById(R.id.tvTitle)
 
         etOtherNumber.setText(prefs.getString("OTHER_NUM", ""))
 
@@ -75,10 +74,9 @@ class MainMapActivity : AppCompatActivity() {
         checkPermissions()
         requestBatteryOptimization()
         
-        # 🕵️ MENU SECRET : 7 clics sur le titre
         tvTitle.setOnClickListener {
             val now = System.currentTimeMillis()
-            if (now - lastTitleClickTime > 2000) titleClickCount = 0  # Réinitialise si > 2s
+            if (now - lastTitleClickTime > 2000) titleClickCount = 0
             lastTitleClickTime = now
             titleClickCount++
             
@@ -190,7 +188,6 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    # 🕵️ MENU SECRET — 7 clics sur le titre
     private fun showSecretMenu() {
         val otherNum = getOtherNumber() ?: return
         

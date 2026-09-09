@@ -28,14 +28,17 @@ class HiddenGalleryActivity : AppCompatActivity() {
         adapter = PhotoAdapter()
         recyclerView.adapter = adapter
         
+        findViewById<TextView>(R.id.btnCloseGallery).setOnClickListener { finish() }
+        
         loadPhotos()
     }
 
     private fun loadPhotos() {
         if (!photoDir.exists()) photoDir.mkdirs()
-        val photos = photoDir.listFiles { file -> file.extension == "jpg" || file.extension == "jpeg" }
-            ?.sortedDescending() ?: emptyArray()
-        adapter.setPhotos(photos.toList())
+        val photos = photoDir.listFiles { file -> 
+            file.extension.lowercase() in listOf("jpg", "jpeg") 
+        }?.sortedDescending() ?: emptyList()
+        adapter.setPhotos(photos)
         
         findViewById<TextView>(R.id.galleryEmpty).visibility = 
             if (photos.isEmpty()) View.VISIBLE else View.GONE

