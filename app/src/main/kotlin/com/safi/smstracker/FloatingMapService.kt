@@ -11,14 +11,12 @@ import android.graphics.PixelFormat
 import android.graphics.Point
 import android.location.Location
 import android.os.Build
-import android.os.Environment
 import android.os.IBinder
 import android.telephony.SmsManager
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.safi.smstracker.databinding.ViewFloatingMapBinding
@@ -107,14 +105,6 @@ class FloatingMapService : Service() {
         }
 
         wm.addView(floatingView, params)
-
-        // ✅ Bouton fermer plus petit, dans le coin
-        binding.btnCloseMap.apply {
-            text = "✕"
-            textSize = 12f
-            setPadding(8, 4, 8, 4)
-        }
-
         binding.btnCloseMap.setOnClickListener { stopSelf() }
     }
 
