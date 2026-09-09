@@ -83,7 +83,7 @@ class MainMapActivity : AppCompatActivity() {
         mapView.overlays.add(otherMarker)
         otherMarkerVisible = false
 
-        tvStatus.text = "🌍 Carte chargée — Prêt à échanger"
+        tvStatus.text = "🌍 Carte chargée — Prêt à tester"
     }
 
     private fun initGPS() {
@@ -111,7 +111,7 @@ class MainMapActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnRequest).setOnClickListener {
             val num = prefs.getString("OTHER_NUM", "") ?: ""
             if (num.isEmpty()) {
-                Toast.makeText(this, "⚠️ Saisis d'abord le numéro de l'autre !", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "⚠️ Saisis d'abord un numéro !", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             sendRequestPosition(num)
@@ -158,7 +158,24 @@ class MainMapActivity : AppCompatActivity() {
 
     private fun sendRequestPosition(num: String) {
         try {
+            Log.d(TAG, "📨 Envoi demande à: $num")
             val smsManager = android.telephony.SmsManager.getDefault()
+            
+            // ✅ NOUVEAU : Si c'est MON propre numéro → SIMULER la réponse immédiatement
+            val myNumber = getMyPhoneNumber()
+            if (myNumber.isNotEmpty() && num == myNumber) {
+                Log.d(TAG, "🧪 TEST : Envoi à moi-même détecté — Simulation réponse !")
+                tvStatus.text = "🧪 TEST — Envoi à soi-même..."
+                Toast.makeText(this, "🧪 Mode TEST — Envoi à moi-même !", Toast.LENGTH_SHORT).show()
+                
+                // Simuler la réponse après 1 seconde
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    sendMyPositionInResponse(num)
+                }, 1000)
+                return
+            }
+            
+            // Sinon envoyer par SMS normal
             try {
                 smsManager.sendDataMessage(num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null)
                 Log.d(TAG, "📨 Demande envoyée en SMS data")
@@ -174,6 +191,19 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
+    // 📱 Récupérer mon propre numéro de téléphone
+    private fun getMyPhoneNumber(): String {
+        return try {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            val num = tm.line1Number ?: ""
+            Log.d(TAG, "📱 Mon numéro: $num")
+            num
+        } catch (e: Exception) {
+            Log.e(TAG, "Impossible de lire mon numéro", e)
+            ""
+        }
+    }
+
     fun sendMyPositionInResponse(toNumber: String) {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             runOnUiThread {
@@ -186,6 +216,18 @@ class MainMapActivity : AppCompatActivity() {
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
             loc?.let {
                 val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
+                Log.d(TAG, "📤 Réponse: $smsText vers $toNumber")
+                
+                // ✅ Si c'est à moi-même → Mettre à jour directement
+                val myNumber = getMyPhoneNumber()
+                if (myNumber.isNotEmpty() && toNumber == myNumber) {
+                    Log.d(TAG, "🧪 TEST : Mise à jour directe de la position")
+                    runOnUiThread {
+                        updateOtherPosition(it.latitude, it.longitude, "MOI-TEST")
+                    }
+                    return@addOnSuccessListener
+                }
+                
                 try {
                     val smsManager = android.telephony.SmsManager.getDefault()
                     try {
