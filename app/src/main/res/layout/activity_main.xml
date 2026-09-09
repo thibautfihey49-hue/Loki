@@ -12,7 +12,16 @@
         android:text="SAFI — SMS de Données"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:layout_marginBottom="32dp"/>
+        android:layout_marginBottom="24dp"/>
+
+    <Button
+        android:id="@+id/btn_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="🪟 Étape 1 : Autoriser la carte flottante"
+        android:backgroundTint="#FF9800"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="match_parent"
@@ -33,7 +42,7 @@
         android:id="@+id/btn_save"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="💾 Sauvegarder"
+        android:text="💾 Étape 2 : Sauvegarder le numéro"
         android:backgroundTint="#4CAF50"
         android:textColor="#FFFFFF"
         android:layout_marginBottom="12dp"/>
@@ -42,8 +51,16 @@
         android:id="@+id/btn_start"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:text="🗺️ Démarrer la carte"
+        android:text="🗺️ Étape 3 : Ouvrir la carte"
         android:backgroundTint="#2196F3"
         android:textColor="#FFFFFF"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💡 La carte apparaît en haut à droite de l'écran"
+        android:textSize="13sp"
+        android:layout_marginTop="24dp"
+        android:gravity="center"/>
 
 </LinearLayout>
