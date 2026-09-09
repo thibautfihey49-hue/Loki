@@ -32,16 +32,19 @@ class MainMapActivity : AppCompatActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
+    private var otherMarkerVisible = false
 
     companion object {
         const val PORT = 7777
         var lastOtherPosition: GeoPoint? = null
+        var instance: MainMapActivity? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Configuration.getInstance().load(this, getSharedPreferences("OSM", MODE_PRIVATE))
         setContentView(R.layout.activity_main_map)
+        instance = this
 
         prefs = getSharedPreferences("SAFI_CONFIG", MODE_PRIVATE)
         mapView = findViewById(R.id.mapView)
@@ -71,9 +74,10 @@ class MainMapActivity : AppCompatActivity() {
             icon = ContextCompat.getDrawable(this@MainMapActivity, android.R.drawable.ic_menu_mylocation)
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "Autre personne"
-            isVisible = false
+            position = GeoPoint(0.0, 0.0)
         }
         mapView.overlays.add(otherMarker)
+        otherMarkerVisible = false
 
         tvStatus.text = "🌍 Carte chargée — Tuiles OSM en ligne"
     }
@@ -91,7 +95,6 @@ class MainMapActivity : AppCompatActivity() {
                 result.lastLocation?.let { loc ->
                     val myPos = GeoPoint(loc.latitude, loc.longitude)
                     sendPositionToOther(myPos)
-                    updateOtherPositionIfNeeded()
                 }
             }
         }
@@ -112,13 +115,12 @@ class MainMapActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnClear).setOnClickListener {
-            stopService(Intent(this, TrackerService::class.java))
             lastOtherPosition = null
-            otherMarker?.isVisible = false
+            otherMarkerVisible = false
             otherMarker?.position = GeoPoint(0.0, 0.0)
             mapView.invalidate()
-            tvStatus.text = "⏹️ Service arrêté"
-            Toast.makeText(this, "⏹️ Arrêté", Toast.LENGTH_SHORT).show()
+            tvStatus.text = "⏹️ Réinitialisé"
+            Toast.makeText(this, "⏹️ Réinitialisé", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -165,27 +167,31 @@ class MainMapActivity : AppCompatActivity() {
         runOnUiThread {
             otherMarker?.position = lastOtherPosition
             otherMarker?.title = "Depuis: $from"
-            otherMarker?.isVisible = true
+            otherMarkerVisible = true
             mapView.invalidate()
             tvStatus.text = "📍 Autre: %.4f, %.4f".format(lat, lon)
-        }
-    }
-
-    private fun updateOtherPositionIfNeeded() {
-        lastOtherPosition?.let { pos ->
-            otherMarker?.position = pos
-            otherMarker?.isVisible = true
         }
     }
 
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+        instance = this
+        lastOtherPosition?.let { pos ->
+            otherMarker?.position = pos
+            otherMarkerVisible = true
+        }
     }
 
     override fun onPause() {
         super.onPause()
         mapView.onPause()
+        instance = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        instance = null
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
