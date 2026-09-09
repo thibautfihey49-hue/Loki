@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.location.Location
 import android.os.Build
 import android.os.IBinder
@@ -16,7 +17,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import android.widget.ImageButton
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.safi.smstracker.databinding.ViewFloatingMapBinding
@@ -78,31 +79,52 @@ class FloatingMapService : Service() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         binding = ViewFloatingMapBinding.inflate(getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater)
         floatingView = binding.root
+
+        // ✅ TAILLE MOYENNE — 80% de l'écran, PAS plein écran !
+        val display = wm.defaultDisplay
+        val size = Point()
+        display.getSize(size)
+        val screenW = size.x
+        val screenH = size.y
+        val w = (screenW * 0.85).toInt()
+        val h = (screenH * 0.65).toInt()
+
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
+
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-            type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
+            w, h,  // ✅ TAILLE FIXE — PLUS PETITE !
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER  // ✅ Centrée sur l'écran
+        }
         wm.addView(floatingView, params)
         binding.btnCloseMap.setOnClickListener { stopSelf() }
     }
 
     private fun initMap() {
+        Configuration.getInstance().load(this, prefs)
         Configuration.getInstance().userAgentValue = packageName
         binding.mapView.setTileSource(TileSourceFactory.MAPNIK)
         binding.mapView.setMultiTouchControls(true)
         binding.mapView.controller?.setZoom(15.0)
+        val defaultPos = GeoPoint(47.4784, -0.5632)
+        binding.mapView.controller?.setCenter(defaultPos)
         myMarker = Marker(binding.mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_online, null)
             title = "📍 MOI"
+            position = defaultPos
         }
         otherMarker = Marker(binding.mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_busy, null)
             title = "👤 L'AUTRE"
+            position = defaultPos
         }
         binding.mapView.overlays.addAll(listOf(myMarker!!, otherMarker!!))
+        binding.mapView.invalidate()
     }
 
     private fun initLocation() {
@@ -124,8 +146,16 @@ class FloatingMapService : Service() {
     }
 
     private fun startLocUpdates() {
-        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             fusedLoc.requestLocationUpdates(locReq, locCb, mainLooper)
+            fusedLoc.lastLocation.addOnSuccessListener { loc ->
+                loc?.let {
+                    val pos = Position(it.latitude, it.longitude, true)
+                    myLastPos = pos
+                    updateMyMarker(pos)
+                }
+            }
+        }
     }
 
     private fun updateMyMarker(p: Position) {
@@ -145,7 +175,9 @@ class FloatingMapService : Service() {
         val other = prefs.getString("OTHER_NUMBER", null) ?: return
         try {
             SmsManager.getDefault().sendTextMessage(other, null, p.toString(), null, null)
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
