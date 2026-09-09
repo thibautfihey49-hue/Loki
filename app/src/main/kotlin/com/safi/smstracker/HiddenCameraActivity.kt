@@ -19,8 +19,12 @@ class HiddenCameraActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.decorView.alpha = 0f
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) takePhoto()
-        else { Toast.makeText(this, "❌ Permission caméra manquante", Toast.LENGTH_SHORT).show(); finish() }
+        if (checkSelfPermission(Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            takePhoto()
+        } else {
+            Toast.makeText(this, "❌ Permission caméra manquante", Toast.LENGTH_SHORT).show()
+            finish()
+        }
     }
 
     private fun takePhoto() {
@@ -29,18 +33,28 @@ class HiddenCameraActivity : AppCompatActivity() {
         val cv = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P)
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SAFI_Private")
+            }
         }
-        val opts = ImageCapture.OutputFileOptions.Builder(contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv).build()
-        ctrl.takePicture(opts, mainExecutor, object : ImageCapture.OnImageSavedCallback {
-            override fun onImageSaved(r: ImageCapture.OutputFileResults) {
-                Toast.makeText(this, "📷 Photo sauvegardée — Galerie privée uniquement", Toast.LENGTH_SHORT).show()
-                finish()
+        val opts = ImageCapture.OutputFileOptions.Builder(
+            contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            cv
+        ).build()
+        ctrl.takePicture(
+            opts,
+            mainExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(r: ImageCapture.OutputFileResults) {
+                    Toast.makeText(this@HiddenCameraActivity, "📷 Photo sauvegardée — Galerie privée uniquement", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                override fun onError(e: ImageCaptureException) {
+                    Toast.makeText(this@HiddenCameraActivity, "❌ Échec photo", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
             }
-            override fun onError(e: ImageCaptureException) {
-                Toast.makeText(this, "❌ Échec photo", Toast.LENGTH_SHORT).show(); finish()
-            }
-        })
+        )
     }
 }
