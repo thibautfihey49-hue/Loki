@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
 import android.widget.Button
@@ -33,17 +36,13 @@ class MainMapActivity : AppCompatActivity() {
     private lateinit var myLocationOverlay: MyLocationNewOverlay
     private var otherMarker: Marker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationRequest: LocationRequest
-    private lateinit var locationCallback: LocationCallback
     private var otherMarkerVisible = false
 
     companion object {
-        const val PORT = 7777
-        const val REQUEST_POS = "!!GET_POS"
-        const val RESPONSE_POS = "!!POS:"
         var lastOtherPosition: GeoPoint? = null
         var instance: MainMapActivity? = null
-        private const val TAG = "SAFI_SMS"
+        private const val TAG = "SAFI_UI"
+        private const val REQUEST_OVERLAY = 1002
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,28 +78,17 @@ class MainMapActivity : AppCompatActivity() {
         otherMarker = Marker(mapView).apply {
             icon = ContextCompat.getDrawable(this@MainMapActivity, android.R.drawable.ic_menu_mylocation)
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            title = "Autre personne"
+            title = "Position de l'autre"
             position = GeoPoint(0.0, 0.0)
         }
         mapView.overlays.add(otherMarker)
         otherMarkerVisible = false
 
-        tvStatus.text = "🌍 Carte chargée — Prêt à tester"
+        tvStatus.text = "✅ Prêt — Saisis le numéro de l'autre"
     }
 
     private fun initGPS() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationRequest = LocationRequest.Builder(5000)
-            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-            .setMinUpdateIntervalMillis(3000)
-            .build()
-
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                super.onLocationResult(result)
-                result.lastLocation?.let { }
-            }
-        }
     }
 
     private fun initButtons() {
@@ -110,13 +98,28 @@ class MainMapActivity : AppCompatActivity() {
             Toast.makeText(this, "✅ Numéro sauvegardé", Toast.LENGTH_SHORT).show()
         }
 
-        findViewById<Button>(R.id.btnRequest).setOnClickListener {
-            val num = prefs.getString("OTHER_NUM", "") ?: ""
-            if (num.isEmpty()) {
-                Toast.makeText(this, "⚠️ Saisis d'abord un numéro !", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-            sendRequestPosition(num)
+        // 📍 Demander une seule fois
+        findViewById<Button>(R.id.btnRequestOnce).setOnClickListener {
+            val num = getOtherNumber() ?: return@setOnClickListener
+            sendSms(num, Commands.REQUEST_POS_ONCE)
+            tvStatus.text = "📨 Demande ponctuelle envoyée à $num..."
+            Toast.makeText(this, "📨 Demande envoyée !", Toast.LENGTH_SHORT).show()
+        }
+
+        // 🟢 SUIVRE L'AUTRE — LUI envoie SA position toutes les minutes
+        findViewById<Button>(R.id.btnStartFollow).setOnClickListener {
+            val num = getOtherNumber() ?: return@setOnClickListener
+            sendSms(num, Commands.REQUEST_POS_START)
+            tvStatus.text = "🟢 SUIVI DÉMARRÉ — $num m'envoie sa position chaque minute"
+            Toast.makeText(this, "🟢 Suivi démarré ! Il va m'envoyer sa position chaque minute", Toast.LENGTH_LONG).show()
+        }
+
+        // 🔴 ARRÊTER — LUI arrête d'envoyer
+        findViewById<Button>(R.id.btnStopFollow).setOnClickListener {
+            val num = getOtherNumber() ?: return@setOnClickListener
+            sendSms(num, Commands.REQUEST_POS_STOP)
+            tvStatus.text = "🔴 SUIVI ARRÊTÉ"
+            Toast.makeText(this, "🔴 Suivi arrêté !", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnCenter).setOnClickListener {
@@ -140,10 +143,80 @@ class MainMapActivity : AppCompatActivity() {
             tvStatus.text = "⏹️ Réinitialisé"
             Toast.makeText(this, "⏹️ Réinitialisé", Toast.LENGTH_SHORT).show()
         }
+
+        // 🗺️ Ouvrir carte flottante
+        findViewById<Button>(R.id.btnFloatingMap).setOnClickListener {
+            if (checkOverlayPermission()) {
+                FloatingWindowService.show(this)
+                Toast.makeText(this, "🗺️ Carte flottante ouverte !", Toast.LENGTH_SHORT).show()
+            } else {
+                requestOverlayPermission()
+            }
+        }
+    }
+
+    private fun getOtherNumber(): String? {
+        val num = prefs.getString("OTHER_NUM", "") ?: ""
+        if (num.isEmpty()) {
+            Toast.makeText(this, "⚠️ Saisis d'abord le numéro de l'autre !", Toast.LENGTH_LONG).show()
+            return null
+        }
+        return num
+    }
+
+    private fun sendSms(to: String, message: String) {
+        try {
+            val smsManager = android.telephony.SmsManager.getDefault()
+            try {
+                smsManager.sendDataMessage(to, null, Commands.PORT.toShort(), message.toByteArray(Charsets.UTF_8), null, null)
+                Log.d(TAG, "SMS data envoyé: $message")
+            } catch (e: Exception) {
+                Log.d(TAG, "SMS data échoué, envoi texte: ${e.message}")
+                smsManager.sendTextMessage(to, null, message, null, null)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "❌ Erreur envoi: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun sendMyPositionInResponse(toNumber: String) {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "⚠️ Permission GPS manquante", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+            loc?.let {
+                val text = "${Commands.RESPONSE_POS}${it.latitude},${it.longitude}"
+                try {
+                    val smsManager = android.telephony.SmsManager.getDefault()
+                    try {
+                        smsManager.sendDataMessage(toNumber, null, Commands.PORT.toShort(), text.toByteArray(Charsets.UTF_8), null, null)
+                    } catch (e: Exception) {
+                        smsManager.sendTextMessage(toNumber, null, text, null, null)
+                    }
+                    Log.d(TAG, "📤 Réponse envoyée à $toNumber")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur envoi réponse", e)
+                }
+            }
+        }
+    }
+
+    fun updateOtherPosition(lat: Double, lon: Double, from: String) {
+        lastOtherPosition = GeoPoint(lat, lon)
+        runOnUiThread {
+            otherMarker?.position = lastOtherPosition
+            otherMarker?.title = "Depuis: $from"
+            otherMarkerVisible = true
+            mapView.invalidate()
+            tvStatus.text = "✅ Reçu de $from : %.4f, %.4f".format(lat, lon)
+            Toast.makeText(this, "✅ Position reçue !", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun checkPermissions() {
-        val needed = mutableListOf(
+        val needed = listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
@@ -158,108 +231,17 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendRequestPosition(num: String) {
-        try {
-            Log.d(TAG, "📨 Envoi demande à: $num")
-            val smsManager = android.telephony.SmsManager.getDefault()
-            
-            val myNumber = getMyPhoneNumber()
-            if (myNumber.isNotEmpty() && num == myNumber) {
-                Log.d(TAG, "🧪 TEST : Envoi à moi-même détecté")
-                tvStatus.text = "🧪 TEST — Envoi à soi-même..."
-                Toast.makeText(this, "🧪 Mode TEST — Envoi à moi-même !", Toast.LENGTH_SHORT).show()
-                
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    sendMyPositionInResponse(num)
-                }, 1000)
-                return
-            }
-            
-            try {
-                smsManager.sendDataMessage(num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null)
-                Log.d(TAG, "📨 Demande envoyée en SMS data")
-            } catch (e: Exception) {
-                Log.d(TAG, "⚠️ SMS data échoué, envoi en SMS texte: ${e.message}")
-                smsManager.sendTextMessage(num, null, REQUEST_POS, null, null)
-            }
-            tvStatus.text = "📨 Demande envoyée à $num..."
-            Toast.makeText(this, "📨 Demande envoyée !", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            tvStatus.text = "❌ Erreur envoi: ${e.message}"
-            Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
-        }
+    private fun checkOverlayPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(this)
+        } else true
     }
 
-    private fun getMyPhoneNumber(): String {
-        return try {
-            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            val num = tm.line1Number ?: ""
-            Log.d(TAG, "📱 Mon numéro: $num")
-            num
-        } catch (e: Exception) {
-            Log.e(TAG, "Impossible de lire mon numéro", e)
-            ""
-        }
-    }
-
-    fun sendMyPositionInResponse(toNumber: String) {
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            runOnUiThread {
-                tvStatus.text = "⚠️ Permission GPS manquante pour répondre"
-                Toast.makeText(this, "⚠️ Accorde la permission GPS d'abord", Toast.LENGTH_LONG).show()
-            }
-            return
-        }
-
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            loc?.let {
-                val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
-                Log.d(TAG, "📤 Réponse: $smsText vers $toNumber")
-                
-                val myNumber = getMyPhoneNumber()
-                if (myNumber.isNotEmpty() && toNumber == myNumber) {
-                    Log.d(TAG, "🧪 TEST : Mise à jour directe de la position")
-                    runOnUiThread {
-                        updateOtherPosition(it.latitude, it.longitude, "MOI-TEST")
-                    }
-                    return@addOnSuccessListener
-                }
-                
-                try {
-                    val smsManager = android.telephony.SmsManager.getDefault()
-                    try {
-                        smsManager.sendDataMessage(toNumber, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null)
-                        Log.d(TAG, "📤 Réponse envoyée en SMS data")
-                    } catch (e: Exception) {
-                        Log.d(TAG, "⚠️ Réponse en SMS texte: ${e.message}")
-                        smsManager.sendTextMessage(toNumber, null, smsText, null, null)
-                    }
-                    runOnUiThread {
-                        tvStatus.text = "📤 Réponse envoyée à $toNumber"
-                        Toast.makeText(this, "📤 Réponse envoyée !", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    runOnUiThread {
-                        tvStatus.text = "❌ Erreur réponse: ${e.message}"
-                        Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            } ?: runOnUiThread {
-                tvStatus.text = "⏳ Position GPS pas encore disponible — Active le GPS !"
-                Toast.makeText(this, "⏳ Active le GPS d'abord !", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    fun updateOtherPosition(lat: Double, lon: Double, from: String) {
-        lastOtherPosition = GeoPoint(lat, lon)
-        runOnUiThread {
-            otherMarker?.position = lastOtherPosition
-            otherMarker?.title = "Depuis: $from"
-            otherMarkerVisible = true
-            mapView.invalidate()
-            tvStatus.text = "✅ Position reçue de $from : %.4f, %.4f".format(lat, lon)
-            Toast.makeText(this, "✅ Position reçue !", Toast.LENGTH_SHORT).show()
+    private fun requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivityForResult(intent, REQUEST_OVERLAY)
+            Toast.makeText(this, "⚠️ Accorde la permission \"Afficher par-dessus les autres apps\"", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -282,17 +264,5 @@ class MainMapActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (allGranted) {
-                Toast.makeText(this, "✅ Toutes permissions accordées", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "⚠️ Certaines permissions sont refusées !", Toast.LENGTH_LONG).show()
-            }
-        }
     }
 }

@@ -52,12 +52,40 @@
                 android:layout_marginEnd="4dp"/>
 
             <Button
-                android:id="@+id/btnRequest"
+                android:id="@+id/btnRequestOnce"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="📍 Demander position"
+                android:text="📍 Demander 1x"
                 android:backgroundTint="#FF9800"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="4dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btnStartFollow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🟢 SUIVRE L'AUTRE"
+                android:backgroundTint="#00C853"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btnStopFollow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🔴 ARRÊTER"
+                android:backgroundTint="#D50000"
                 android:textColor="#FFFFFF"
                 android:layout_marginEnd="4dp"/>
         </LinearLayout>
@@ -83,7 +111,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="🔴 Aller vers l'autre"
+                android:text="🔴 Aller vers lui"
                 android:backgroundTint="#E91E63"
                 android:textColor="#FFFFFF"
                 android:layout_marginEnd="4dp"/>
@@ -98,11 +126,20 @@
                 android:textColor="#FFFFFF"/>
         </LinearLayout>
 
+        <Button
+            android:id="@+id/btnFloatingMap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🗺️ CARTE FLOTTANTE"
+            android:backgroundTint="#7B1FA2"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="8dp"/>
+
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="✅ Prêt — Déplacez et pincez pour zoomer"
+            android:text="✅ Prêt — Saisis le numéro de l'autre"
             android:textColor="#90EE90"
             android:textSize="12sp"
             android:layout_marginTop="8dp"/>

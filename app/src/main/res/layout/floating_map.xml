@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#DD000000"
+    android:padding="4dp"
+    android:elevation="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#CC222222"
+        android:padding="4dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🗺️ Position de l'autre"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tvCloseFloating"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="❌"
+            android:textSize="14sp"
+            android:clickable="true"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <org.osmdroid.views.MapView
+        android:id="@+id/floatingMapView"
+        android:layout_width="280dp"
+        android:layout_height="200dp"
+        android:layout_marginTop="4dp"/>
+
+    <TextView
+        android:id="@+id/tvFloatingInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📍 En attente..."
+        android:textColor="#90EE90"
+        android:textSize="10sp"
+        android:padding="4dp"
+        android:gravity="center"
+        android:layout_marginTop="4dp"/>
+
+</LinearLayout>
