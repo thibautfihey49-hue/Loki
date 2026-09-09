@@ -15,6 +15,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 
@@ -52,11 +53,7 @@ class PersistentTrackingService : Service() {
             }
             
             val intent = Intent(context, PersistentTrackingService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            ContextCompat.startForegroundService(context, intent)
             Log.d(TAG, "✅ Demande de démarrage du service envoyée")
         }
 
@@ -69,12 +66,7 @@ class PersistentTrackingService : Service() {
         super.onCreate()
         Log.d(TAG, "🔧 Service onCreate()")
         createNotificationChannel()
-        // ✅ startForeground avec type pour Android 14+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, createNotification(), Service.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIF_ID, createNotification())
-        }
+        startForeground(NOTIF_ID, createNotification())
         isRunning = true
         handler = Handler(Looper.getMainLooper())
         fusedClient = LocationServices.getFusedLocationProviderClient(this)

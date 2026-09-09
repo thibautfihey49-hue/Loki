@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -41,11 +42,7 @@ class CameraCaptureService : Service() {
                 putExtra("USE_FRONT", useFront)
             }
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            ContextCompat.startForegroundService(context, intent)
             Log.d(TAG, "📸 Demande de prise de vue envoyée")
         }
         
@@ -59,12 +56,7 @@ class CameraCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        // ✅ startForeground avec type pour Android 14+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, buildNotification(), Service.FOREGROUND_SERVICE_TYPE_CAMERA)
-        } else {
-            startForeground(NOTIF_ID, buildNotification())
-        }
+        startForeground(NOTIF_ID, buildNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
