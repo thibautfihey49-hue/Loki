@@ -1,3 +1,4 @@
+import com.safi.smstracker.model.Position
 package com.safi.smstracker
 
 import android.content.BroadcastReceiver
