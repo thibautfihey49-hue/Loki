@@ -332,21 +332,21 @@ class MainMapActivity : AppCompatActivity() {
 
     private fun openPhotosInGallery() {
         try {
-            val intent = Intent(Intent.ACTION_VIEW)
-            val uri = Uri.parse(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                .resolve("SAFI_Photos")
-                .let { 
-                    if (!it.exists()) it.mkdirs()
-                    Uri.fromFile(it)
-                }
+            val safiDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "SAFI_Photos"
             )
-            intent.setDataAndType(uri.toString(), "image/*")
+            if (!safiDir.exists()) safiDir.mkdirs()
+            
+            val uri = Uri.fromFile(safiDir)
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(uri, "image/*")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
             Toast.makeText(this, "📂 Ouverture du dossier SAFI_Photos...", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(this, "❌ Impossible d'ouvrir la galerie", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ Impossible d'ouvrir la galerie: ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Erreur ouverture galerie", e)
         }
     }
 
