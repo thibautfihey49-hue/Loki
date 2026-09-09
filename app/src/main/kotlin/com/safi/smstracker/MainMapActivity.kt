@@ -341,7 +341,7 @@ class MainMapActivity : AppCompatActivity() {
                     Uri.fromFile(it)
                 }
             )
-            intent.setDataAndType(uri, "image/*")
+            intent.setDataAndType(uri.toString(), "image/*")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
             Toast.makeText(this, "📂 Ouverture du dossier SAFI_Photos...", Toast.LENGTH_SHORT).show()
