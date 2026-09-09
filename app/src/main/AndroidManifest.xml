@@ -35,7 +35,6 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- ✅ RÉCEPTEUR SMS DE DONNÉES — PORT 7777 -->
         <receiver
             android:name=".DataSmsReceiver"
             android:exported="true"

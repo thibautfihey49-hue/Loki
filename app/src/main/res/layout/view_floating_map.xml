@@ -5,10 +5,10 @@
     android:background="#CC000000">
 
     <FrameLayout
+        android:id="@+id/map_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_margin="2dp"
-        android:id="@+id/map_container"/>
+        android:layout_margin="2dp"/>
 
     <ImageButton
         android:id="@+id/btn_close_map"

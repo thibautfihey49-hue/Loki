@@ -99,7 +99,7 @@ class FloatingMapService : Service() {
         }
         wm.addView(floatingView, params)
 
-        val container = binding.root.findViewById<FrameLayout>(android.R.id.content)
+        val container = binding.root.findViewById<FrameLayout>(R.id.map_container)
         container.removeAllViews()
         mapCanvas = OfflineMapView(this)
         container.addView(mapCanvas)
@@ -192,7 +192,7 @@ class FloatingMapService : Service() {
         private var otherPos: Position? = null
         private var centerLat = 47.4784
         private var centerLon = -0.5632
-        private val scale = 50000f
+        private val scale = 50000f // 1 pixel = ~50 mètres
 
         fun updateMyPos(p: Position) {
             myPos = p
@@ -212,18 +212,23 @@ class FloatingMapService : Service() {
             val h = height.toFloat()
             if (w < 10 || h < 10) return
 
+            // Fond noir
             canvas.drawRect(0f, 0f, w, h, paintBg)
+
+            // Grille
             repeat(11) { i -> canvas.drawLine(i*w/10, 0f, i*w/10, h, paintGrid) }
             repeat(11) { i -> canvas.drawLine(0f, i*h/10, w, i*h/10, paintGrid) }
 
+            // 🟢 MOI — Au centre
             canvas.drawCircle(w/2, h/2, 12f, paintMy)
             canvas.drawCircle(w/2, h/2, 20f, paintRing)
 
+            // 🔴 L'AUTRE — Position relative
             otherPos?.let { other ->
                 val dx = (other.longitude - centerLon) * 111000.0 * cos(Math.toRadians(centerLat))
                 val dy = -(other.latitude - centerLat) * 111000.0
-                val px = w/2 + (dx / scale.toDouble()).toFloat()
-                val py = h/2 + (dy / scale.toDouble()).toFloat()
+                val px = (w/2 + (dx / scale.toDouble())).toFloat()
+                val py = (h/2 + (dy / scale.toDouble())).toFloat()
                 if (px > 10f && px < w-10f && py > 10f && py < h-10f) {
                     canvas.drawCircle(px, py, 12f, paintOther)
                 }
