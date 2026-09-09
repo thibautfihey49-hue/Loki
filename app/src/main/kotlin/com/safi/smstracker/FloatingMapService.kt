@@ -50,7 +50,7 @@ class FloatingMapService : Service() {
         super.onCreate()
         prefs = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
         createChannel()
-        startForeground(1, createNotif(), Service.FOREGROUND_SERVICE_TYPE_LOCATION)
+        startForeground(1, createNotif(), 8)
         initFloatingWindow()
         initMap()
         initLocation()
