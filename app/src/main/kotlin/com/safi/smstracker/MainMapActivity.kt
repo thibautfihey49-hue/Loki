@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -49,6 +50,7 @@ class MainMapActivity : AppCompatActivity() {
         var lastOtherPosition: GeoPoint? = null
         var instance: MainMapActivity? = null
         private const val TAG = "SAFI_UI"
+        private const val REQUEST_PERMISSIONS_ALL = 100
         private const val REQUEST_OVERLAY = 1002
         private const val REQUEST_BATTERY_OPTIM = 1003
         private const val REQUEST_CAMERA_PERM = 1004
@@ -71,8 +73,13 @@ class MainMapActivity : AppCompatActivity() {
         initMap()
         initGPS()
         initButtons()
-        checkPermissions()
-        requestBatteryOptimization()
+        
+        // ✅ Demander TOUTES les permissions D'ABORD
+        if (!hasAllPermissions()) {
+            showPermissionExplanation()
+        } else {
+            onAllPermissionsGranted()
+        }
         
         tvTitle.setOnClickListener {
             val now = System.currentTimeMillis()
@@ -87,9 +94,88 @@ class MainMapActivity : AppCompatActivity() {
                 Toast.makeText(this, "🕵️ ${SECRET_CLICK_COUNT - titleClickCount} clics...", Toast.LENGTH_SHORT).show()
             }
         }
-        
+    }
+
+    private fun hasAllPermissions(): Boolean {
+        val needed = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.INTERNET,
+            Manifest.permission.CAMERA
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return needed.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun showPermissionExplanation() {
+        AlertDialog.Builder(this)
+            .setTitle("🔒 Permissions nécessaires")
+            .setMessage("SAFI a besoin des permissions suivantes :\n\n" +
+                "📍 Position GPS — pour envoyer/recevoir votre position\n" +
+                "📨 SMS — pour communiquer entre les deux téléphones\n" +
+                "📷 Caméra — pour prendre des photos à distance\n\n" +
+                "Cliquez sur OK pour accorder les permissions.")
+            .setPositiveButton("OK") { _, _ ->
+                requestAllPermissions()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun requestAllPermissions() {
+        val needed = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.INTERNET,
+            Manifest.permission.CAMERA
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS_ALL)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_PERMISSIONS_ALL) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                Toast.makeText(this, "✅ Toutes les permissions accordées !", Toast.LENGTH_LONG).show()
+                onAllPermissionsGranted()
+            } else {
+                AlertDialog.Builder(this)
+                    .setTitle("⚠️ Permissions manquantes")
+                    .setMessage("Sans les permissions, SAFI ne peut pas fonctionner correctement.\n" +
+                        "Accorde toutes les permissions dans les paramètres de l'application.")
+                    .setPositiveButton("Paramètres") { _, _ ->
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        intent.data = Uri.parse("package:$packageName")
+                        startActivity(intent)
+                    }
+                    .setNegativeButton("Quitter") { _, _ -> finish() }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
+    }
+
+    private fun onAllPermissionsGranted() {
+        requestBatteryOptimization()
         PersistentTrackingService.start(this)
-        tvStatus.text = "✅ Service en arrière-plan DÉMARRÉ — Cliquez 7x sur le titre pour le menu secret"
+        tvStatus.text = "✅ Prêt — Service de suivi en arrière-plan DÉMARRÉ"
     }
 
     private fun initMap() {
@@ -198,7 +284,7 @@ class MainMapActivity : AppCompatActivity() {
             "❌ Fermer le menu"
         )
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("🕵️ MENU SECRET")
             .setItems(options) { _, which ->
                 when (which) {
@@ -347,29 +433,6 @@ class MainMapActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkPermissions() {
-        val needed = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.SEND_SMS,
-            Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.READ_SMS,
-            Manifest.permission.INTERNET,
-            Manifest.permission.CAMERA
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            needed.add(Manifest.permission.POST_NOTIFICATIONS)
-            needed.add(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        val missing = needed.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 100)
-        }
-    }
-
     private fun requestBatteryOptimization() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
@@ -393,6 +456,13 @@ class MainMapActivity : AppCompatActivity() {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivityForResult(intent, REQUEST_OVERLAY)
             Toast.makeText(this, "⚠️ Accorde la permission \"Afficher par-dessus les autres apps\"", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_OVERLAY && checkOverlayPermission()) {
+            FloatingWindowService.show(this)
         }
     }
 

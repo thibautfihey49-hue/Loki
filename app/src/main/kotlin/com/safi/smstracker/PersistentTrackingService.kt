@@ -4,170 +4,177 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
-import org.osmdroid.util.GeoPoint
 
 class PersistentTrackingService : Service() {
 
     companion object {
         private const val TAG = "SAFI_SERVICE"
-        private const val CHANNEL_ID = "SAFI_PERSISTENT"
+        private const val CHANNEL_ID = "SAFI_TRACKING"
         private const val NOTIF_ID = 1337
-        var isRunning = false
+        
+        private var isRunning = false
         private var handler: Handler? = null
         private var runnable: Runnable? = null
-        private val INTERVAL = 60000L // 1 minute
-        private var otherNumber: String? = null
-        private var prefs: SharedPreferences? = null
+        private var fusedClient: FusedLocationProviderClient? = null
 
         fun start(context: Context) {
-            if (!isRunning) {
-                val intent = Intent(context, PersistentTrackingService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-                Log.d(TAG, "✅ Service démarré en arrière-plan")
+            if (isRunning) {
+                Log.d(TAG, "✅ Service déjà en cours")
+                return
             }
+            
+            // ✅ VÉRIFIER LA PERMISSION AVANT DE DÉMARRER — OBLIGATOIRE SDK 34
+            val hasFine = ActivityCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            val hasCoarse = ActivityCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            if (!hasFine && !hasCoarse) {
+                Log.e(TAG, "❌ Permission de localisation NON accordée — Service impossible à démarrer")
+                return
+            }
+            
+            val intent = Intent(context, PersistentTrackingService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            Log.d(TAG, "✅ Demande de démarrage du service envoyée")
         }
 
         fun stop(context: Context) {
             context.stopService(Intent(context, PersistentTrackingService::class.java))
-            Log.d(TAG, "🛑 Service arrêté")
         }
     }
-
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate() {
         super.onCreate()
-        prefs = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        Log.d(TAG, "🔧 Service onCreate()")
         createNotificationChannel()
         startForeground(NOTIF_ID, createNotification())
         isRunning = true
-        Log.d(TAG, "🟢 Service persistent CRÉE et en FOREGROUND")
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        otherNumber = prefs?.getString("OTHER_NUM", "")
-        startRepeatingUpdates()
-        return START_STICKY // 🔴 CRUCIAL : Android le redémarre automatiquement si tu le tue
-    }
-
-    private fun startRepeatingUpdates() {
-        stopRepeatingUpdates()
-        
         handler = Handler(Looper.getMainLooper())
-        runnable = object : Runnable {
-            override fun run() {
-                if (DataSmsReceiver.sendingJob != null) {
-                    sendMyPosition()
-                }
-                handler?.postDelayed(this, INTERVAL)
-            }
-        }
-        handler?.postDelayed(runnable!!, 5000)
-        Log.d(TAG, "⏰ Mise à jour position démarrée toutes les minutes")
-    }
-
-    private fun stopRepeatingUpdates() {
-        runnable?.let { handler?.removeCallbacks(it) }
-        handler = null
-        runnable = null
-    }
-
-    private fun sendMyPosition() {
-        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-        
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            loc?.let {
-                val text = "${Commands.RESPONSE_POS}${it.latitude},${it.longitude}"
-                otherNumber = prefs?.getString("OTHER_NUM", "")
-                otherNumber?.let { num ->
-                    try {
-                        val smsManager = android.telephony.SmsManager.getDefault()
-                        try {
-                            smsManager.sendDataMessage(num, null, Commands.PORT.toShort(), text.toByteArray(Charsets.UTF_8), null, null)
-                            Log.d(TAG, "📤 Position envoyée à $num")
-                        } catch (e: Exception) {
-                            smsManager.sendTextMessage(num, null, text, null, null)
-                            Log.d(TAG, "📤 Position envoyée (texte) à $num")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ Erreur envoi position", e)
-                    }
-                }
-            }
-        }
+        fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        startLocationLoop()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "SAFI - Suivi en arrière-plan",
+                "SAFI — Suivi GPS en arrière-plan",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Le service de suivi fonctionne en arrière-plan pour envoyer/recevoir les positions"
+                description = "Maintient le suivi actif même en arrière-plan"
                 setShowBadge(false)
                 enableVibration(false)
+                setSound(null, null)
             }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
-        val intent = Intent(this, MainMapActivity::class.java)
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this,
+            0,
+            intent,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("🟢 SAFI — Suivi actif")
-            .setContentText("L'application fonctionne en arrière-plan — Envoi/réception des positions")
+            .setContentTitle("SAFI — Suivi actif")
+            .setContentText("L'application fonctionne en arrière-plan")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
             .setCategory(Notification.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
+    }
+
+    private fun startLocationLoop() {
+        runnable = object : Runnable {
+            override fun run() {
+                sendMyPositionIfNeeded()
+                handler?.postDelayed(this, 60000) // Toutes les minutes
+            }
+        }
+        handler?.postDelayed(runnable!!, 10000) // Premier dans 10s
+        Log.d(TAG, "🔄 Boucle de positionnement démarrée")
+    }
+
+    private fun sendMyPositionIfNeeded() {
+        val prefs = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
+        val otherNum = prefs.getString("OTHER_NUM", "") ?: ""
+        val isFollowing = DataSmsReceiver.sendingJob != null
+        
+        if (otherNum.isEmpty() || !isFollowing) return
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.e(TAG, "❌ Permission GPS perdue — Arrêt temporaire")
+            return
+        }
+
+        fusedClient?.lastLocation?.addOnSuccessListener { loc ->
+            loc?.let {
+                val msg = "${Commands.RESPONSE_POS}${it.latitude},${it.longitude}"
+                try {
+                    val smsManager = android.telephony.SmsManager.getDefault()
+                    try {
+                        smsManager.sendDataMessage(
+                            otherNum,
+                            null,
+                            Commands.PORT.toShort(),
+                            msg.toByteArray(Charsets.UTF_8),
+                            null,
+                            null
+                        )
+                    } catch (e: Exception) {
+                        smsManager.sendTextMessage(otherNum, null, msg, null, null)
+                    }
+                    Log.d(TAG, "📤 Position envoyée en arrière-plan: ${it.latitude}, ${it.longitude}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Échec envoi position", e)
+                }
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
-        stopRepeatingUpdates()
         isRunning = false
-        Log.d(TAG, "🔴 Service détruit — Redémarrage automatique imminent...")
-    }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-        // 🔴 Si l'utilisateur ferme l'appli → REDÉMARRER IMMÉDIATEMENT
-        Log.d(TAG, "⚠️ Appli fermée par l'utilisateur — Redémarrage du service...")
-        val restartIntent = Intent(applicationContext, PersistentTrackingService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(restartIntent)
-        } else {
-            startService(restartIntent)
-        }
+        runnable?.let { handler?.removeCallbacks(it) }
+        handler = null
+        Log.d(TAG, "🛑 Service détruit")
     }
 }
