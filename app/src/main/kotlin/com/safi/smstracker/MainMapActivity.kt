@@ -43,6 +43,7 @@ class MainMapActivity : AppCompatActivity() {
         var instance: MainMapActivity? = null
         private const val TAG = "SAFI_UI"
         private const val REQUEST_OVERLAY = 1002
+        private const val REQUEST_BATTERY_OPTIM = 1003
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +63,11 @@ class MainMapActivity : AppCompatActivity() {
         initGPS()
         initButtons()
         checkPermissions()
+        requestBatteryOptimization()
+        
+        // 🟢 Démarre le service en arrière-plan DÈS LE LANCEMENT
+        PersistentTrackingService.start(this)
+        tvStatus.text = "✅ Service en arrière-plan DÉMARRÉ — L'appli fonctionne 24h/24"
     }
 
     private fun initMap() {
@@ -83,8 +89,6 @@ class MainMapActivity : AppCompatActivity() {
         }
         mapView.overlays.add(otherMarker)
         otherMarkerVisible = false
-
-        tvStatus.text = "✅ Prêt — Saisis le numéro de l'autre"
     }
 
     private fun initGPS() {
@@ -116,7 +120,7 @@ class MainMapActivity : AppCompatActivity() {
                 sendSms(num, Commands.REQUEST_POS_START)
                 tvStatus.text = "🟢 SUIVI DÉMARRÉ — $num m'envoie sa position chaque minute"
             }
-            Toast.makeText(this, "🟢 Suivi démarré !", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "🟢 Suivi démarré ! L'appli fonctionne en arrière-plan", Toast.LENGTH_LONG).show()
         }
 
         findViewById<Button>(R.id.btnStopFollow).setOnClickListener {
@@ -246,8 +250,6 @@ class MainMapActivity : AppCompatActivity() {
 
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
             loc?.let {
-                val pos = GeoPoint(it.latitude, it.longitude)
-                Log.d(TAG, "📤 Position: ${it.latitude}, ${it.longitude}")
                 updateOtherPosition(it.latitude, it.longitude, toNumber)
             } ?: runOnUiThread {
                 tvStatus.text = "⏳ Position GPS pas disponible — Active le GPS !"
@@ -269,18 +271,33 @@ class MainMapActivity : AppCompatActivity() {
     }
 
     private fun checkPermissions() {
-        val needed = listOf(
+        val needed = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
             Manifest.permission.INTERNET
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         val missing = needed.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), 100)
+        }
+    }
+
+    private fun requestBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:$packageName")
+            try {
+                startActivityForResult(intent, REQUEST_BATTERY_OPTIM)
+            } catch (e: Exception) {
+                Log.d(TAG, "Optimisation batterie déjà désactivée")
+            }
         }
     }
 
