@@ -13,7 +13,6 @@ import android.hardware.Camera
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import java.io.File
@@ -28,6 +27,9 @@ class CameraCaptureService : Service() {
         private const val TAG = "SAFI_CAMERA"
         private const val CHANNEL_ID = "SAFI_CAMERA_CHANNEL"
         private const val NOTIF_ID = 1338
+        
+        const val FACING_FRONT = 0
+        const val FACING_BACK = 1
         
         fun takePhoto(context: Context, useFront: Boolean = true) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) 
@@ -47,6 +49,10 @@ class CameraCaptureService : Service() {
             }
             Log.d(TAG, "📸 Demande de prise de vue envoyée")
         }
+        
+        fun capturePhoto(context: Context, facing: Int) {
+            takePhoto(context, useFront = (facing == FACING_FRONT))
+        }
     }
 
     private var camera: Camera? = null
@@ -59,7 +65,7 @@ class CameraCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getBooleanExtra("USE_FRONT", true)?.let { useFront ->
-            capturePhoto(useFront)
+            capturePhotoInternal(useFront)
         }
         return START_NOT_STICKY
     }
@@ -90,7 +96,7 @@ class CameraCaptureService : Service() {
             .build()
     }
 
-    private fun capturePhoto(useFront: Boolean) {
+    private fun capturePhotoInternal(useFront: Boolean) {
         try {
             val cameraId = if (useFront) findFrontCamera() else findBackCamera()
             if (cameraId == -1) {
@@ -103,11 +109,9 @@ class CameraCaptureService : Service() {
             camera?.setPreviewDisplay(null)
             camera?.startPreview()
             
-            // ✅ Prendre la photo
             camera?.takePicture(null, null, { data, cam ->
                 try {
-                    // Sauvegarder l'image
-                    val photosDir = File(getExternalFilesDir(null), "SAFI_Photos")
+                    val photosDir = File(filesDir, "received_photos")
                     if (!photosDir.exists()) photosDir.mkdirs()
                     
                     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.FRANCE).format(Date())
@@ -120,15 +124,8 @@ class CameraCaptureService : Service() {
                     
                     Log.d(TAG, "✅ Photo sauvegardée: ${photoFile.absolutePath}")
                     
-                    // Notifier l'UI
                     MainMapActivity.instance?.onPhotoReceived(photoFile)
-                    
-                    // Envoyer la photo si un numéro est configuré
-                    val prefs = getSharedPreferences("SAFI_CONFIG", Context.MODE_PRIVATE)
-                    val otherNum = prefs.getString("OTHER_NUM", "") ?: ""
-                    if (otherNum.isNotEmpty()) {
-                        PhotoUploadService.sendPhoto(this, otherNum, photoFile)
-                    }
+                    PhotoUploadService.addPhotoToQueue(this, photoFile)
                     
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ Erreur sauvegarde photo", e)

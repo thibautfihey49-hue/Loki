@@ -107,24 +107,19 @@ class DataSmsReceiver : BroadcastReceiver() {
                 
                 try {
                     val bytes = android.util.Base64.decode(fullBase64, android.util.Base64.NO_WRAP)
-                    val savedFile = savePhotoToGallery(context, filename, bytes)
+                    val hiddenDir = File(context.filesDir, "received_photos")
+                    if (!hiddenDir.exists()) hiddenDir.mkdirs()
+                    val file = File(hiddenDir, filename)
+                    FileOutputStream(file).use { it.write(bytes) }
                     Log.d(TAG, "✅ Photo complète reçue: $filename")
                     MainMapActivity.instance?.runOnUiThread {
-                        MainMapActivity.instance?.onPhotoReceived(savedFile)
+                        MainMapActivity.instance?.onPhotoReceived(file)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Erreur reconstitution photo", e)
                 }
             }
         }
-    }
-
-    private fun savePhotoToGallery(context: Context, filename: String, bytes: ByteArray): File {
-        val hiddenDir = File(context.filesDir, "received_photos")
-        if (!hiddenDir.exists()) hiddenDir.mkdirs()
-        val file = File(hiddenDir, filename)
-        FileOutputStream(file).use { it.write(bytes) }
-        return file
     }
 
     private fun startSendingPosition(context: Context, toNumber: String) {
