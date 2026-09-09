@@ -69,7 +69,12 @@ class PersistentTrackingService : Service() {
         super.onCreate()
         Log.d(TAG, "🔧 Service onCreate()")
         createNotificationChannel()
-        startForeground(NOTIF_ID, createNotification())
+        // ✅ startForeground avec type pour Android 14+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, createNotification(), Service.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIF_ID, createNotification())
+        }
         isRunning = true
         handler = Handler(Looper.getMainLooper())
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
