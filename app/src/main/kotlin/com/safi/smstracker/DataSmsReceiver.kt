@@ -1,14 +1,13 @@
-import com.safi.smstracker.model.Position
 package com.safi.smstracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Bundle
 import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
+import com.safi.smstracker.model.Position
 
 class DataSmsReceiver : BroadcastReceiver() {
 
@@ -24,7 +23,7 @@ class DataSmsReceiver : BroadcastReceiver() {
             
             Log.d("SAFI_DATA", "Reçu sur port $port depuis $expediteur")
 
-            if (port == FloatingMapService.DESTINATION_PORT) {
+            if (port == 7777) {
                 val data = msg.messageBody ?: ""
                 val position = Position.parse(data)
                 if (position != null) {
