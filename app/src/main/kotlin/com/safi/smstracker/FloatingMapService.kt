@@ -87,25 +87,38 @@ class FloatingMapService : Service() {
         val display = wm.defaultDisplay
         val size = Point()
         display.getSize(size)
-        val w = (size.x * 0.90).toInt()
-        val h = (size.y * 0.70).toInt()
+
+        // ✅ PETIT CARRÉ EN HAUT À DROITE
+        val side = (size.x * 0.38).toInt()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            w, h,
+            side, side,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.CENTER }
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = (size.x * 0.08).toInt()
+            y = (size.y * 0.12).toInt()
+        }
+
         wm.addView(floatingView, params)
+
+        // ✅ Bouton fermer plus petit, dans le coin
+        binding.btnCloseMap.apply {
+            text = "✕"
+            textSize = 12f
+            setPadding(8, 4, 8, 4)
+        }
+
         binding.btnCloseMap.setOnClickListener { stopSelf() }
     }
 
     private fun initMap() {
-        // ✅ CONFIGURATION OSMDROID COMPLÈTE
         val osmdroidBase = File(cacheDir, "osmdroid")
         osmdroidBase.mkdirs()
         Configuration.getInstance().apply {
@@ -118,21 +131,20 @@ class FloatingMapService : Service() {
         mapView = binding.mapView
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
-        mapView.controller?.setZoom(15.0)
+        mapView.controller?.setZoom(12.0)
         mapView.isTilesScaledToDpi = true
 
-        // ✅ Position Angers
         val defaultPos = GeoPoint(47.4784, -0.5632)
         mapView.controller?.setCenter(defaultPos)
 
         myMarker = Marker(mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_online, null)
-            title = "📍 MOI"
+            title = "MOI"
             position = defaultPos
         }
         otherMarker = Marker(mapView).apply {
             icon = resources.getDrawable(android.R.drawable.presence_busy, null)
-            title = "👤 L'AUTRE"
+            title = "AUTRE"
             position = defaultPos
         }
         mapView.overlays.addAll(listOf(myMarker!!, otherMarker!!))
