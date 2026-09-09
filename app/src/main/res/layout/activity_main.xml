@@ -1,39 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="24dp" android:gravity="center_horizontal"
-    android:background="#121212">
-    <TextView android:text="🎯 SAFI SMS Tracker" android:textSize="28sp" android:textStyle="bold"
-        android:textColor="#4CAF50" android:layout_marginBottom="8dp" android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-    <TextView android:text="100% Sans Internet — Uniquement SMS" android:textSize="14sp"
-        android:textColor="#AAAAAA" android:layout_marginBottom="32dp" android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:hint="📱 Ton numéro" android:layout_marginBottom="16dp">
-        <com.google.android.material.textfield.TextInputEditText android:id="@+id/etMyNumber"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:inputType="phone" android:textColor="#FFFFFF"/>
-    </com.google.android.material.textfield.TextInputLayout>
-    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:hint="👤 Numéro de l'autre personne" android:layout_marginBottom="32dp">
-        <com.google.android.material.textfield.TextInputEditText android:id="@+id/etOtherNumber"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:inputType="phone" android:textColor="#FFFFFF"/>
-    </com.google.android.material.textfield.TextInputLayout>
-    <Button android:id="@+id/btnStart" android:layout_width="match_parent" android:layout_height="60dp"
-        android:text="▶️ DÉMARRER LE TRACKING" android:background="#4CAF50" android:textColor="#FFFFFF"
-        android:textSize="16sp" android:layout_marginBottom="12dp"/>
-    <Button android:id="@+id/btnStop" android:layout_width="match_parent" android:layout_height="50dp"
-        android:text="⏹️ ARRÊTER" android:background="#EF5350" android:textColor="#FFFFFF" android:layout_marginBottom="24dp"/>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:layout_margin="6dp">
-        <Button android:id="@+id/btnCamera" android:layout_width="0dp" android:layout_height="50dp"
-            android:layout_weight="1" android:text="📷 Photo cachée" android:background="#6A1B9A" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/btnGallery" android:layout_width="0dp" android:layout_height="50dp"
-            android:layout_weight="1" android:text="🖼️ Galerie privée" android:background="#1565C0" android:textColor="#FFFFFF"/>
-    </LinearLayout>
-    <TextView android:text="\n✅ Échange par SMS uniquement\n✅ Carte flottante hors ligne\n✅ Fonctionne partout avec réseau mobile"
-        android:textSize="13sp" android:textColor="#888888" android:gravity="center" android:layout_marginTop="24dp"
-        android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal"
+    android:background="#F5F5F5">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SAFI — SMS de Données"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Échange par SMS de données — Port 7777 — Jamais dans la messagerie"
+        android:textSize="13sp"
+        android:layout_marginBottom="32dp"
+        android:gravity="center"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Numéro de l'autre téléphone :"
+        android:textSize="15sp"
+        android:layout_gravity="start"
+        android:layout_marginStart="4dp"/>
+
+    <EditText
+        android:id="@+id/et_numero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="+33 6 12 34 56 78"
+        android:inputType="phone"
+        android:layout_marginBottom="16dp"
+        android:padding="14dp"
+        android:background="@android:drawable/edit_text"/>
+
+    <Button
+        android:id="@+id/btn_save"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="💾 Sauvegarder le numéro"
+        android:backgroundTint="#4CAF50"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:layout_marginBottom="12dp"/>
+
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="🗺️ Ouvrir la carte flottante"
+        android:backgroundTint="#2196F3"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚠️ SMS de données = données binaires sur port 7777. Invisible, pas de trace, pas de facturation supplémentaire."
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginTop="24dp"
+        android:padding="8dp"/>
+
 </LinearLayout>

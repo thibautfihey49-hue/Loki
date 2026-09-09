@@ -7,6 +7,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.location.Location
@@ -17,23 +20,19 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.safi.smstracker.databinding.ViewFloatingMapBinding
 import com.safi.smstracker.model.Position
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import java.io.File
+import kotlin.math.*
 
 class FloatingMapService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "SAFI_SMS_TRACKER"
-        const val ACTION_UPDATE_POS = "com.safi.UPDATE_POSITION"
-        const val EXTRA_POS = "position"
+        const val CHANNEL_ID = "SAFI_DATA_SMS"
+        const val DESTINATION_PORT = 7777 // ✅ Port dédié — comme je te l'avais fait avant
         var myLastPos: Position? = null
         var otherLastPos: Position? = null
     }
@@ -44,10 +43,8 @@ class FloatingMapService : Service() {
     private lateinit var locReq: LocationRequest
     private lateinit var locCb: LocationCallback
     private var floatingView: View? = null
-    private var myMarker: Marker? = null
-    private var otherMarker: Marker? = null
+    private var mapCanvas: OfflineMapView? = null
     private lateinit var prefs: SharedPreferences
-    private lateinit var mapView: MapView
 
     override fun onCreate() {
         super.onCreate()
@@ -55,22 +52,21 @@ class FloatingMapService : Service() {
         createChannel()
         startForeground(1, createNotif(), 8)
         initFloatingWindow()
-        initMap()
         initLocation()
     }
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "SAFI SMS Tracker", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, "SAFI Data SMS", NotificationManager.IMPORTANCE_LOW)
             )
         }
     }
 
     private fun createNotif(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SAFI SMS Tracker 📡")
-            .setContentText("Échange de positions actif")
+            .setContentTitle("SAFI Data SMS 📡")
+            .setContentText("SMS de données — Port 7777")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -85,9 +81,7 @@ class FloatingMapService : Service() {
         val display = wm.defaultDisplay
         val size = Point()
         display.getSize(size)
-
-        // ✅ PETIT CARRÉ EN HAUT À DROITE
-        val side = (size.x * 0.38).toInt()
+        val side = (size.x * 0.40).toInt()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -100,50 +94,22 @@ class FloatingMapService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = (size.x * 0.08).toInt()
-            y = (size.y * 0.12).toInt()
+            x = (size.x * 0.06).toInt()
+            y = (size.y * 0.10).toInt()
         }
-
         wm.addView(floatingView, params)
+
+        val container = binding.root.findViewById<FrameLayout>(R.id.map_container)
+        container.removeAllViews()
+        mapCanvas = OfflineMapView(this)
+        container.addView(mapCanvas)
+
         binding.btnCloseMap.setOnClickListener { stopSelf() }
-    }
-
-    private fun initMap() {
-        val osmdroidBase = File(cacheDir, "osmdroid")
-        osmdroidBase.mkdirs()
-        Configuration.getInstance().apply {
-            osmdroidBasePath = osmdroidBase
-            osmdroidTileCache = File(osmdroidBase, "tiles")
-            userAgentValue = packageName
-            load(this@FloatingMapService, prefs)
-        }
-
-        mapView = binding.mapView
-        mapView.setTileSource(TileSourceFactory.MAPNIK)
-        mapView.setMultiTouchControls(true)
-        mapView.controller?.setZoom(12.0)
-        mapView.isTilesScaledToDpi = true
-
-        val defaultPos = GeoPoint(47.4784, -0.5632)
-        mapView.controller?.setCenter(defaultPos)
-
-        myMarker = Marker(mapView).apply {
-            icon = resources.getDrawable(android.R.drawable.presence_online, null)
-            title = "MOI"
-            position = defaultPos
-        }
-        otherMarker = Marker(mapView).apply {
-            icon = resources.getDrawable(android.R.drawable.presence_busy, null)
-            title = "AUTRE"
-            position = defaultPos
-        }
-        mapView.overlays.addAll(listOf(myMarker!!, otherMarker!!))
-        mapView.invalidate()
     }
 
     private fun initLocation() {
         fusedLoc = LocationServices.getFusedLocationProviderClient(this)
-        locReq = LocationRequest.Builder(10000).setMinUpdateIntervalMillis(8000)
+        locReq = LocationRequest.Builder(5000).setMinUpdateIntervalMillis(3000)
             .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY).build()
         locCb = object : LocationCallback() {
             override fun onLocationResult(r: LocationResult) {
@@ -151,8 +117,8 @@ class FloatingMapService : Service() {
                 r.lastLocation?.let { loc ->
                     val pos = Position(loc.latitude, loc.longitude, true)
                     myLastPos = pos
-                    updateMyMarker(pos)
-                    sendBySms(pos)
+                    mapCanvas?.updateMyPos(pos)
+                    sendPositionDataSms(pos) // ✅ Envoi par SMS de DONNÉES
                 }
             }
         }
@@ -166,37 +132,45 @@ class FloatingMapService : Service() {
                 loc?.let {
                     val pos = Position(it.latitude, it.longitude, true)
                     myLastPos = pos
-                    updateMyMarker(pos)
+                    mapCanvas?.updateMyPos(pos)
                 }
             }
         }
     }
 
-    private fun updateMyMarker(p: Position) {
-        val gp = GeoPoint(p.latitude, p.longitude)
-        myMarker?.position = gp
-        mapView.controller?.animateTo(gp)
-        mapView.invalidate()
-    }
+    // 📤 ENVOI PAR SMS DE DONNÉES — sendDataMessage, PAS de texte, PAS de messagerie
+    private fun sendPositionDataSms(p: Position) {
+        val otherNum = prefs.getString("OTHER_NUMBER", "") ?: return
+        if (otherNum.isEmpty()) return
 
-    fun updateOtherPos(p: Position) {
-        otherLastPos = p
-        otherMarker?.position = GeoPoint(p.latitude, p.longitude)
-        mapView.invalidate()
-    }
-
-    private fun sendBySms(p: Position) {
-        val other = prefs.getString("OTHER_NUMBER", null) ?: return
         try {
-            SmsManager.getDefault().sendTextMessage(other, null, p.toString(), null, null)
+            val data = p.toString().toByteArray(Charsets.UTF_8)
+            SmsManager.getDefault().sendDataMessage(
+                otherNum,        // Numéro du destinataire
+                null,            // Numéro du centre SMS (automatique)
+                DESTINATION_PORT.toShort(), // ✅ Port 7777 — comme un socket !
+                data,            // Données binaires
+                null, null       // Pas de broadcast de confirmation
+            )
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    // 📥 APPELÉ DEPUIS DataSmsReceiver — Données reçues sur le port 7777
+    fun onDataReceived(p: Position, fromNumber: String) {
+        otherLastPos = p
+        mapCanvas?.updateOtherPos(p)
+        android.os.Handler(mainLooper).post {
+            Toast.makeText(this, "📍 Donnée reçue de $fromNumber", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_UPDATE_POS) {
-            intent.getParcelableExtra<Position>(EXTRA_POS)?.let { updateOtherPos(it) }
+        if (intent?.action == "DATA_RECEIVED") {
+            val pos = intent.getParcelableExtra<Position>("pos")
+            val from = intent.getStringExtra("from") ?: ""
+            pos?.let { onDataReceived(it, from) }
         }
         return START_STICKY
     }
@@ -208,4 +182,54 @@ class FloatingMapService : Service() {
     }
 
     override fun onBind(i: Intent?): IBinder? = null
+
+    inner class OfflineMapView(ctx: Context) : View(ctx) {
+        private val paintBg = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
+        private val paintGrid = Paint().apply { color = Color.parseColor("#222222"); strokeWidth = 1f }
+        private val paintMy = Paint().apply { color = Color.GREEN; style = Paint.Style.FILL }
+        private val paintOther = Paint().apply { color = Color.RED; style = Paint.Style.FILL }
+        private val paintRing = Paint().apply { color = Color.GREEN; style = Paint.Style.STROKE; strokeWidth = 2f }
+
+        private var myPos: Position? = null
+        private var otherPos: Position? = null
+        private var centerLat = 47.4784
+        private var centerLon = -0.5632
+        private val scale = 50000f
+
+        fun updateMyPos(p: Position) {
+            myPos = p
+            centerLat = p.latitude
+            centerLon = p.longitude
+            invalidate()
+        }
+
+        fun updateOtherPos(p: Position) {
+            otherPos = p
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            if (w < 10 || h < 10) return
+
+            canvas.drawRect(0f, 0f, w, h, paintBg)
+            repeat(11) { i -> canvas.drawLine(i*w/10, 0f, i*w/10, h, paintGrid) }
+            repeat(11) { i -> canvas.drawLine(0f, i*h/10, w, i*h/10, paintGrid) }
+
+            canvas.drawCircle(w/2, h/2, 12f, paintMy)
+            canvas.drawCircle(w/2, h/2, 20f, paintRing)
+
+            otherPos?.let { other ->
+                val dx = (other.longitude - centerLon) * 111000f * cos(Math.toRadians(centerLat))
+                val dy = -(other.latitude - centerLat) * 111000f
+                val px = w/2 + (dx / scale)
+                val py = h/2 + (dy / scale)
+                if (px > 10 && px < w-10 && py > 10 && py < h-10) {
+                    canvas.drawCircle(px, py, 12f, paintOther)
+                }
+            }
+        }
+    }
 }
