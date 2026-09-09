@@ -1,52 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ✅ Permissions de base -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     
-    <!-- ✅ SMS -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     
-    <!-- ✅ LOCALISATION — OBLIGATOIRES -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     
-    <!-- ✅ SERVICE PREMIER PLAN LOCATION — OBLIGATOIRE pour SDK 34 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
-    <!-- ✅ CAMÉRA & STOCKAGE -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
-    <!-- ✅ NOTIFICATIONS & AFFICHAGE PAR-DESSUS -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     
-    <!-- ✅ EMPÊCHER LA MISE EN VEILLE -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
-    <!-- ✅ EXEMPTER DES OPTIMISATIONS DE BATTERIE -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="SAFI Tracker"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SAFISMSTracker"
+        android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
         android:requestLegacyExternalStorage="true">
 
-        <!-- ✅ Écran principal -->
         <activity
             android:name=".MainMapActivity"
             android:exported="true">
@@ -56,36 +44,28 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ Galerie cachée -->
         <activity
             android:name=".HiddenGalleryActivity"
-            android:exported="false"
-            android:theme="@style/Theme.SAFISMSTracker" />
+            android:exported="false" />
 
-        <!-- ✅ Service Caméra -->
         <service
             android:name=".CameraCaptureService"
             android:exported="false"
             android:foregroundServiceType="camera" />
 
-        <!-- ✅ Service Envoi Photo -->
         <service
             android:name=".PhotoUploadService"
             android:exported="false" />
 
-        <!-- ✅ Service Suivi Continu — TYPE LOCATION -->
         <service
             android:name=".PersistentTrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- ✅ Fenêtre flottante -->
         <service
             android:name=".FloatingWindowService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:exported="false" />
 
-        <!-- ✅ Récepteur SMS -->
         <receiver
             android:name=".DataSmsReceiver"
             android:exported="true">

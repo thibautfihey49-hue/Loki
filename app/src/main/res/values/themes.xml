@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SAFISMSTracker" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">#FF2196F3</item>
+        <item name="colorPrimaryDark">#FF1976D2</item>
+        <item name="colorAccent">#FF009688</item>
+    </style>
+</resources>
