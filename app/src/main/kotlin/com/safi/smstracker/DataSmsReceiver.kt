@@ -16,31 +16,31 @@ class DataSmsReceiver : BroadcastReceiver() {
         for (msg in Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
             val port = getPort(msg)
             val expediteur = msg.originatingAddress ?: "??"
-            Log.d("SAFI_SMS", "Reçu sur port $port depuis $expediteur")
+            val messageTexte = msg.messageBody ?: ""
+            Log.d("SAFI_SMS", "Reçu sur port $port depuis $expediteur : $messageTexte")
 
             if (port == MainMapActivity.PORT) {
-                val text = msg.messageBody ?: ""
-                if (text.startsWith("!!POS:")) {
-                    val parts = text.removePrefix("!!POS:").split(",")
-                    if (parts.size == 2) {
-                        try {
-                            val lat = parts[0].toDouble()
-                            val lon = parts[1].toDouble()
-                            
-                            if (MainMapActivity.lastOtherPosition == null ||
-                                MainMapActivity.lastOtherPosition!!.latitude != lat ||
-                                MainMapActivity.lastOtherPosition!!.longitude != lon) {
-                                
-                                val actCls = Class.forName("com.safi.smstracker.MainMapActivity")
-                                val updateMethod = actCls.getMethod("updateOtherPosition", 
-                                    Double::class.java, Double::class.java, String::class.java)
-                                updateMethod.invoke(context, lat, lon, expediteur)
+                when {
+                    // 📥 DEMANDE DE POSITION → Répondre automatiquement
+                    messageTexte == MainMapActivity.REQUEST_POS -> {
+                        Log.d("SAFI_SMS", "📨 Demande de position reçue de $expediteur — Envoi réponse...")
+                        MainMapActivity.instance?.sendMyPositionInResponse(expediteur)
+                        abortBroadcast()
+                    }
+
+                    // 📥 RÉPONSE AVEC POSITION → Afficher sur la carte
+                    messageTexte.startsWith(MainMapActivity.RESPONSE_POS) -> {
+                        val parts = messageTexte.removePrefix(MainMapActivity.RESPONSE_POS).split(",")
+                        if (parts.size == 2) {
+                            try {
+                                val lat = parts[0].toDouble()
+                                val lon = parts[1].toDouble()
+                                MainMapActivity.instance?.updateOtherPosition(lat, lon, expediteur)
+                                abortBroadcast()
+                                Log.d("SAFI_SMS", "✅ Position mise à jour: $lat, $lon")
+                            } catch (e: Exception) {
+                                Log.e("SAFI_SMS", "Erreur parsing position", e)
                             }
-                            
-                            abortBroadcast()
-                            Log.d("SAFI_SMS", "✅ Position mise à jour: $lat, $lon")
-                        } catch (e: Exception) {
-                            Log.e("SAFI_SMS", "Erreur parsing", e)
                         }
                     }
                 }

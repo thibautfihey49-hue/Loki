@@ -36,6 +36,8 @@ class MainMapActivity : AppCompatActivity() {
 
     companion object {
         const val PORT = 7777
+        const val REQUEST_POS = "!!GET_POS"
+        const val RESPONSE_POS = "!!POS:"
         var lastOtherPosition: GeoPoint? = null
         var instance: MainMapActivity? = null
     }
@@ -79,7 +81,7 @@ class MainMapActivity : AppCompatActivity() {
         mapView.overlays.add(otherMarker)
         otherMarkerVisible = false
 
-        tvStatus.text = "🌍 Carte chargée — Tuiles OSM en ligne"
+        tvStatus.text = "🌍 Carte chargée — Prêt à échanger"
     }
 
     private fun initGPS() {
@@ -93,8 +95,7 @@ class MainMapActivity : AppCompatActivity() {
             override fun onLocationResult(result: LocationResult) {
                 super.onLocationResult(result)
                 result.lastLocation?.let { loc ->
-                    val myPos = GeoPoint(loc.latitude, loc.longitude)
-                    sendPositionToOther(myPos)
+                    // Rien à faire ici — on envoie seulement quand demandé
                 }
             }
         }
@@ -105,13 +106,30 @@ class MainMapActivity : AppCompatActivity() {
             val num = etOtherNumber.text.toString().trim()
             prefs.edit().putString("OTHER_NUM", num).apply()
             Toast.makeText(this, "✅ Numéro sauvegardé", Toast.LENGTH_SHORT).show()
-            startLocationUpdates()
+        }
+
+        // 📍 NOUVEAU : Demander la position de l'autre
+        findViewById<Button>(R.id.btnRequest).setOnClickListener {
+            val num = prefs.getString("OTHER_NUM", "") ?: ""
+            if (num.isEmpty()) {
+                Toast.makeText(this, "⚠️ Saisis d'abord le numéro de l'autre !", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            sendRequestPosition(num)
         }
 
         findViewById<Button>(R.id.btnCenter).setOnClickListener {
             myLocationOverlay.myLocation?.let {
                 mapView.controller.animateTo(it, 12.0, 500L)
             } ?: Toast.makeText(this, "⏳ Position GPS en attente...", Toast.LENGTH_SHORT).show()
+        }
+
+        // 🔴 NOUVEAU : Aller vers la position de l'autre
+        findViewById<Button>(R.id.btnGoToOther).setOnClickListener {
+            lastOtherPosition?.let { pos ->
+                mapView.controller.animateTo(pos, 14.0, 600L)
+                Toast.makeText(this, "🔴 Position de l'autre", Toast.LENGTH_SHORT).show()
+            } ?: Toast.makeText(this, "⚠️ Pas encore de position reçue", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnClear).setOnClickListener {
@@ -136,32 +154,54 @@ class MainMapActivity : AppCompatActivity() {
         }
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), 100)
-        } else {
-            startLocationUpdates()
         }
     }
 
-    private fun startLocationUpdates() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
-            tvStatus.text = "✅ GPS actif — Envoi position toutes les 5s"
-        }
-    }
-
-    private fun sendPositionToOther(pos: GeoPoint) {
-        val num = prefs.getString("OTHER_NUM", "") ?: return
-        if (num.isEmpty()) return
-
+    // 📨 Envoyer une demande de position
+    private fun sendRequestPosition(num: String) {
         try {
-            val smsText = "!!POS:${pos.latitude},${pos.longitude}"
             android.telephony.SmsManager.getDefault().sendDataMessage(
-                num, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null
+                num, null, PORT.toShort(), REQUEST_POS.toByteArray(Charsets.UTF_8), null, null
             )
+            tvStatus.text = "📨 Demande envoyée à $num..."
+            Toast.makeText(this, "📨 Demande envoyée !", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            tvStatus.text = "❌ Erreur SMS: ${e.message}"
+            tvStatus.text = "❌ Erreur envoi: ${e.message}"
+            Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
+    // 📤 Envoyer MA position en réponse à une demande
+    fun sendMyPositionInResponse(toNumber: String) {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread {
+                tvStatus.text = "⚠️ Permission GPS manquante pour répondre"
+            }
+            return
+        }
+
+        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+            loc?.let {
+                val smsText = "$RESPONSE_POS${it.latitude},${it.longitude}"
+                try {
+                    android.telephony.SmsManager.getDefault().sendDataMessage(
+                        toNumber, null, PORT.toShort(), smsText.toByteArray(Charsets.UTF_8), null, null
+                    )
+                    runOnUiThread {
+                        tvStatus.text = "📤 Réponse envoyée à $toNumber"
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        tvStatus.text = "❌ Erreur réponse: ${e.message}"
+                    }
+                }
+            } ?: runOnUiThread {
+                tvStatus.text = "⏳ GPS pas encore prêt pour répondre"
+            }
+        }
+    }
+
+    // 📥 Mettre à jour la position de l'autre sur la carte
     fun updateOtherPosition(lat: Double, lon: Double, from: String) {
         lastOtherPosition = GeoPoint(lat, lon)
         runOnUiThread {
@@ -169,7 +209,7 @@ class MainMapActivity : AppCompatActivity() {
             otherMarker?.title = "Depuis: $from"
             otherMarkerVisible = true
             mapView.invalidate()
-            tvStatus.text = "📍 Autre: %.4f, %.4f".format(lat, lon)
+            tvStatus.text = "✅ Position reçue de $from : %.4f, %.4f".format(lat, lon)
         }
     }
 
@@ -197,7 +237,7 @@ class MainMapActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100 && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            startLocationUpdates()
+            Toast.makeText(this, "✅ Toutes permissions accordées", Toast.LENGTH_SHORT).show()
         }
     }
 }
