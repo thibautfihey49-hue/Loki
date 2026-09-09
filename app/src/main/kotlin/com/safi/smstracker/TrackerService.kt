@@ -71,7 +71,7 @@ class TrackerService : Service() {
         val display = wm.defaultDisplay
         val size = Point()
         display.getSize(size)
-        val side = (size.x * 0.75).toInt() // PLUS GRANDE : 75% de l'écran
+        val side = (size.x * 0.75).toInt()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -145,7 +145,6 @@ class TrackerService : Service() {
     override fun onBind(i: Intent?): IBinder? = null
 
     inner class InteractiveMapView(ctx: Context) : View(ctx) {
-        // 🎨 Pinceaux
         private val bg = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
         private val grid = Paint().apply { color = Color.parseColor("#333333"); strokeWidth = 1f }
         private val dotMe = Paint().apply { color = Color.GREEN; style = Paint.Style.FILL }
@@ -154,19 +153,22 @@ class TrackerService : Service() {
         private val textPaint = Paint().apply { color = Color.WHITE; textSize = 22f; isFakeBoldText = true }
         private val btnCenter = Paint().apply { color = Color.parseColor("#444444"); style = Paint.Style.FILL }
         private val btnBorder = Paint().apply { color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f }
+        private val lineBetween = Paint().apply { 
+            color = Color.YELLOW
+            strokeWidth = 1.5f
+            style = Paint.Style.STROKE
+            alpha = 128
+        }
 
-        // 📍 Position de la caméra
         private var centerLat = 47.4784
         private var centerLon = -0.5632
-        private var scale = 50000.0 // mètres par pixel
-        private val minScale = 5000.0   // Max zoom : 5km
-        private val maxScale = 500000.0 // Min zoom : 500km
+        private var scale = 50000.0
+        private val minScale = 5000.0
+        private val maxScale = 500000.0
 
-        // 📍 Positions des points
         private var myPosition: Position? = null
         private var otherPosition: Position? = null
 
-        // 👆 Gestion tactile
         private var lastTouchX = 0f
         private var lastTouchY = 0f
         private var touchStartX = 0f
@@ -187,7 +189,7 @@ class TrackerService : Service() {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             val w = width.toFloat()
             val h = height.toFloat()
-            if (w < 10 || h < 10) return true
+            if (w < 10f || h < 10f) return true
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -206,7 +208,6 @@ class TrackerService : Service() {
 
                 MotionEvent.ACTION_MOVE -> {
                     if (event.pointerCount == 2) {
-                        // 🤏 PINCER = ZOOM
                         val spacing = getFingerSpacing(event)
                         val zoomFactor = lastFingerSpacing / spacing
                         scale *= zoomFactor
@@ -214,7 +215,6 @@ class TrackerService : Service() {
                         lastFingerSpacing = spacing
                         invalidate()
                     } else if (event.pointerCount == 1) {
-                        // 👆 GLISSER = DÉPLACER
                         val dx = event.x - lastTouchX
                         val dy = event.y - lastTouchY
                         
@@ -235,9 +235,7 @@ class TrackerService : Service() {
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    // 🖱️ CLIC = recentrer si pas de déplacement
                     if (!isDragging && abs(event.x - touchStartX) < 10f && abs(event.y - touchStartY) < 10f) {
-                        // Vérifie si clic sur bouton "Recentrer"
                         val btnRect = RectF(w - 100f, h - 100f, w - 20f, h - 20f)
                         if (btnRect.contains(event.x, event.y)) {
                             myPosition?.let {
@@ -261,8 +259,8 @@ class TrackerService : Service() {
         private fun latLonToPixel(lat: Double, lon: Double, w: Float, h: Float): Pair<Float, Float> {
             val dx = (lon - centerLon) * 111000.0 * cos(Math.toRadians(centerLat))
             val dy = -(lat - centerLat) * 111000.0
-            val px = w/2 + (dx / scale).toFloat()
-            val py = h/2 + (dy / scale).toFloat()
+            val px = (w/2 + (dx / scale)).toFloat()
+            val py = (h/2 + (dy / scale)).toFloat()
             return Pair(px, py)
         }
 
@@ -270,19 +268,17 @@ class TrackerService : Service() {
             super.onDraw(canvas)
             val w = width.toFloat()
             val h = height.toFloat()
-            if (w < 10 || h < 10) return
+            if (w < 10f || h < 10f) return
 
-            // 🖼️ Fond
             canvas.drawRect(0f, 0f, w, h, bg)
 
-            // 📐 Grille dynamique
             val gridStep = when {
-                scale < 15000 -> 1000    // 1km
-                scale < 50000 -> 5000    // 5km
-                scale < 150000 -> 20000  // 20km
-                else -> 100000           // 100km
+                scale < 15000 -> 1000.0
+                scale < 50000 -> 5000.0
+                scale < 150000 -> 20000.0
+                else -> 100000.0
             }
-            val pixelsPerGrid = gridStep / scale
+            val pixelsPerGrid = (gridStep / scale).toFloat()
             val gridCountX = (w / pixelsPerGrid).toInt() + 2
             val gridCountY = (h / pixelsPerGrid).toInt() + 2
             val offsetX = ((-centerLon * 111000.0 * cos(Math.toRadians(centerLat))) / scale % pixelsPerGrid).toFloat()
@@ -297,37 +293,30 @@ class TrackerService : Service() {
                 canvas.drawLine(0f, y, w, y, grid)
             }
 
-            // 🟢 MOI
+            var myPx = 0f
+            var myPy = 0f
             myPosition?.let { pos ->
                 val (px, py) = latLonToPixel(pos.latitude, pos.longitude, w, h)
+                myPx = px
+                myPy = py
                 canvas.drawCircle(px, py, 16f, dotMe)
                 canvas.drawCircle(px, py, 26f, ring)
             }
 
-            // 🔴 L'AUTRE
             otherPosition?.let { pos ->
                 val (px, py) = latLonToPixel(pos.latitude, pos.longitude, w, h)
                 canvas.drawCircle(px, py, 16f, dotOther)
-                // Ligne entre les deux
-                myPosition?.let { my ->
-                    val (mx, myy) = latLonToPixel(my.latitude, my.longitude, w, h)
-                    canvas.drawLine(mx, myy, px, py, Paint().apply { 
-                        color = Color.YELLOW
-                        strokeWidth = 1.5f
-                        style = Paint.Style.STROKE
-                        alpha = 128
-                    })
+                if (myPosition != null) {
+                    canvas.drawLine(myPx, myPy, px, py, lineBetween)
                 }
             }
 
-            // 🔘 Bouton Recentrer (en bas à droite)
             val btnX = w - 100f
             val btnY = h - 100f
             canvas.drawCircle(btnX + 40f, btnY + 40f, 35f, btnCenter)
             canvas.drawCircle(btnX + 40f, btnY + 40f, 35f, btnBorder)
             canvas.drawText("⌖", btnX + 25f, btnY + 52f, textPaint)
 
-            // 📏 Échelle
             val scaleText = when {
                 scale < 15000 -> "1 carré = 1km"
                 scale < 50000 -> "1 carré = 5km"
