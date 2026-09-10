@@ -330,25 +330,6 @@ class MainMapActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun openPhotosInGallery() {
-        try {
-            val safiDir = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "SAFI_Photos"
-            )
-            if (!safiDir.exists()) safiDir.mkdirs()
-            
-            val uri = Uri.fromFile(safiDir)
-            val intent = Intent(Intent.ACTION_VIEW)
-            intent.setDataAndType(uri, "image/*")
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            Toast.makeText(this, "📂 Ouverture du dossier SAFI_Photos...", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "❌ Impossible d'ouvrir la galerie: ${e.message}", Toast.LENGTH_LONG).show()
-            Log.e(TAG, "Erreur ouverture galerie", e)
-        }
-    }
 
     fun onPhotoReceived(photoFile: File) {
         runOnUiThread {
@@ -515,12 +496,30 @@ class MainMapActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         mapView.onPause()
-        instance = null
     }
 
     override fun onDestroy() {
         testRunnable?.let { testHandler?.removeCallbacks(it) }
         super.onDestroy()
-        instance = null
     }
+
+    private fun openPhotosInGallery() {
+        try {
+            val safiDir = File(getExternalFilesDir(null), "SAFI_Photos")
+            if (!safiDir.exists()) safiDir.mkdirs()
+            val chemin = safiDir.absolutePath
+            AlertDialog.Builder(this)
+                .setTitle("📂 Dossier SAFI_Photos")
+                .setMessage("Photos sauvegardées dans :\n\n$chemin\n\n→ Fichiers → Stockage interne → Android → data → com.safi.smstracker → files → SAFI_Photos")
+                .setPositiveButton("OK", null)
+                .show()
+        } catch (e: Exception) {
+            AlertDialog.Builder(this)
+                .setTitle("📂 Chemin")
+                .setMessage("Stockage interne → Android → data → com.safi.smstracker → files → SAFI_Photos")
+                .setPositiveButton("OK", null)
+                .show()
+        }
+    }
+
 }
