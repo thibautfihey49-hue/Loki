@@ -35,13 +35,11 @@ class DataSmsReceiver : BroadcastReceiver() {
             when {
                 text == Commands.REQUEST_PHOTO_FRONT -> {
                     Log.d(TAG, "📸 DEMANDE PHOTO AVANT de $from")
-                    CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_FRONT)
                     abortBroadcast()
                 }
 
                 text == Commands.REQUEST_PHOTO_BACK -> {
                     Log.d(TAG, "📸 DEMANDE PHOTO ARRIÈRE de $from")
-                    CameraCaptureService.capturePhoto(context, CameraCaptureService.FACING_BACK)
                     abortBroadcast()
                 }
 
