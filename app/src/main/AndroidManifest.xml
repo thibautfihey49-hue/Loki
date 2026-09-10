@@ -48,20 +48,16 @@
             android:name=".HiddenGalleryActivity"
             android:exported="false" />
 
-        <service
             android:exported="false"
             android:foregroundServiceType="camera" />
 
-        <service
             android:name=".PhotoUploadService"
             android:exported="false" />
 
-        <service
             android:name=".PersistentTrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <service
             android:name=".FloatingWindowService"
             android:exported="false" />
 
@@ -73,5 +69,7 @@
             </intent-filter>
         </receiver>
 
+        <service android:name=".PersistentTrackingService" android:exported="false" />
+        <service android:name=".FloatingWindowService" android:exported="false" />
     </application>
 </manifest>
