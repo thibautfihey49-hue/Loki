@@ -1,39 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
-    
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="SAFI Tracker"
+        android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
-        android:requestLegacyExternalStorage="true">
-
+        android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+        
         <activity
             android:name=".MainMapActivity"
             android:exported="true">
@@ -43,23 +33,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".HiddenGalleryActivity"
-            android:exported="false" />
-
-            android:exported="false"
-            android:foregroundServiceType="camera" />
-
-            android:name=".PhotoUploadService"
-            android:exported="false" />
-
-            android:name=".PersistentTrackingService"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-            android:name=".FloatingWindowService"
-            android:exported="false" />
-
         <receiver
             android:name=".DataSmsReceiver"
             android:exported="true">
@@ -68,7 +41,14 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".PersistentTrackingService" android:foregroundServiceType="location" android:exported="false">
-        <service android:name=".FloatingWindowService" android:exported="false" />
+        <service
+            android:name=".PersistentTrackingService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <service
+            android:name=".FloatingWindowService"
+            android:exported="false" />
+
     </application>
 </manifest>
