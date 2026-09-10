@@ -68,7 +68,7 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".PersistentTrackingService" android:exported="false" />
+        <service android:name=".PersistentTrackingService" android:foregroundServiceType="location" android:exported="false">
         <service android:name=".FloatingWindowService" android:exported="false" />
     </application>
 </manifest>
