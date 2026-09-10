@@ -4,7 +4,6 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,9 +14,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.*
 
 class PersistentTrackingService : Service() {
 
@@ -37,6 +34,7 @@ class PersistentTrackingService : Service() {
                 return
             }
             
+            // ✅ VÉRIFIER LA PERMISSION AVANT DE DÉMARRER — OBLIGATOIRE SDK 34
             val hasFine = ActivityCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -48,12 +46,16 @@ class PersistentTrackingService : Service() {
             ) == PackageManager.PERMISSION_GRANTED
             
             if (!hasFine && !hasCoarse) {
-                Log.e(TAG, "❌ Permission de localisation NON accordée")
+                Log.e(TAG, "❌ Permission de localisation NON accordée — Service impossible à démarrer")
                 return
             }
             
             val intent = Intent(context, PersistentTrackingService::class.java)
-            ContextCompat.startForegroundService(context, intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
             Log.d(TAG, "✅ Demande de démarrage du service envoyée")
         }
 
@@ -106,6 +108,7 @@ class PersistentTrackingService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
             .setCategory(Notification.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
@@ -113,10 +116,10 @@ class PersistentTrackingService : Service() {
         runnable = object : Runnable {
             override fun run() {
                 sendMyPositionIfNeeded()
-                handler?.postDelayed(this, 60000)
+                handler?.postDelayed(this, 60000) // Toutes les minutes
             }
         }
-        handler?.postDelayed(runnable!!, 10000)
+        handler?.postDelayed(runnable!!, 10000) // Premier dans 10s
         Log.d(TAG, "🔄 Boucle de positionnement démarrée")
     }
 
@@ -136,7 +139,7 @@ class PersistentTrackingService : Service() {
                 android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(TAG, "❌ Permission GPS perdue")
+            Log.e(TAG, "❌ Permission GPS perdue — Arrêt temporaire")
             return
         }
 
@@ -157,7 +160,7 @@ class PersistentTrackingService : Service() {
                     } catch (e: Exception) {
                         smsManager.sendTextMessage(otherNum, null, msg, null, null)
                     }
-                    Log.d(TAG, "📤 Position envoyée: ${it.latitude}, ${it.longitude}")
+                    Log.d(TAG, "📤 Position envoyée en arrière-plan: ${it.latitude}, ${it.longitude}")
                 } catch (e: Exception) {
                     Log.e(TAG, "Échec envoi position", e)
                 }
